@@ -1,0 +1,485 @@
+import React, { useState } from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Linking,
+} from 'react-native';
+import {
+  List,
+  Switch,
+  Button,
+  Card,
+  Text,
+  Divider,
+  Avatar,
+} from 'react-native-paper';
+import { useAuth } from '../../context/AuthContext';
+import { userService, authService } from '../../services/api';
+import { colors, spacing, typography } from '../../styles/theme';
+
+const SettingsScreen = ({ navigation }) => {
+  const { user, logout, updateUser } = useAuth();
+  const [notifications, setNotifications] = useState(user?.settings?.notifications ?? true);
+  const [isPublic, setIsPublic] = useState(user?.settings?.isPublic ?? true);
+  const [emailStatus, setEmailStatus] = useState(null);
+  const [isLoadingEmail, setIsLoadingEmail] = useState(false);
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Déconnexion',
+      'Êtes-vous sûr de vouloir vous déconnecter ?',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Déconnexion',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+          },
+        },
+      ]
+    );
+  };
+
+  const loadEmailStatus = async () => {
+    try {
+      console.log('Tentative de chargement du statut email...');
+      const status = await authService.getEmailStatus();
+      console.log('Statut email chargé:', status);
+      setEmailStatus(status);
+    } catch (error) {
+      console.error('Erreur chargement statut email:', error);
+      console.error('Status code:', error.response?.status);
+      console.error('Response data:', error.response?.data);
+    }
+  };
+
+  const handleResendVerificationEmail = async () => {
+    if (!emailStatus?.canResendEmail) {
+      Alert.alert(
+        'Limitation',
+        `Vous devez attendre ${emailStatus?.timeLeftMinutes} minutes avant de pouvoir renvoyer un email de vérification.`
+      );
+      return;
+    }
+
+    setIsLoadingEmail(true);
+    try {
+      await authService.resendVerification();
+      Alert.alert(
+        'Email envoyé',
+        'Un nouveau code de vérification a été envoyé à votre adresse email.'
+      );
+      // Recharger le statut
+      await loadEmailStatus();
+    } catch (error) {
+      console.error('Erreur renvoi email:', error);
+      const errorMessage = error.response?.data?.message || 'Impossible d\'envoyer l\'email';
+      Alert.alert('Erreur', errorMessage);
+    } finally {
+      setIsLoadingEmail(false);
+    }
+  };
+
+  // Charger le statut email au montage du composant
+  React.useEffect(() => {
+    if (user && (user.emailVerified === false || user.emailVerified === undefined)) {
+      loadEmailStatus();
+    }
+  }, [user]);
+
+  const handleNotificationToggle = async (value) => {
+    setNotifications(value);
+    try {
+      // Mettre à jour les paramètres sur le serveur
+      await userService.updateSettings({ notifications: value });
+      updateUser({ settings: { ...user.settings, notifications: value } });
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour des notifications:', error);
+      setNotifications(!value); // Revenir à l'état précédent
+    }
+  };
+
+  const handlePublicToggle = async (value) => {
+    console.log('Changement de visibilité:', value);
+    setIsPublic(value);
+    try {
+      // Mettre à jour les paramètres sur le serveur
+      console.log('Envoi de la requête API...');
+      const result = await userService.updateSettings({ isPublic: value });
+      console.log('Réponse API:', result);
+      updateUser({ settings: { ...user.settings, isPublic: value } });
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la visibilité:', error);
+      setIsPublic(!value); // Revenir à l'état précédent
+    }
+  };
+
+  const openPortfolio = () => {
+    Linking.openURL('https://tristan.baldazzi.fr');
+  };
+
+  const openEmail = () => {
+    Linking.openURL('mailto:tristan.baldazzi@makemydesign.fr');
+  };
+
+  return (
+    <ScrollView style={styles.container}>
+      {/* Profil utilisateur */}
+      <Card style={styles.profileCard}>
+        <Card.Content style={styles.profileContent}>
+          <View style={styles.profileInfo}>
+            <Avatar.Text
+              size={80}
+              label={`${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`}
+              style={styles.avatar}
+            />
+            <View style={styles.userDetails}>
+              <Text style={styles.userName}>
+                {user?.firstName} {user?.lastName}
+              </Text>
+              <Text style={styles.userLevel}>
+                Niveau {user?.level} • {user?.xp} XP
+              </Text>
+              <Text style={styles.userStats}>
+                {user?.totalSessionsCompleted} séances complétées
+              </Text>
+            </View>
+          </View>
+        </Card.Content>
+      </Card>
+
+      {/* Vérification d'email */}
+      {user && (user.emailVerified === false || user.emailVerified === undefined) && (
+        <Card style={styles.emailCard}>
+          <Card.Content>
+            <Text style={styles.sectionTitle}>📧 Vérification d'email</Text>
+            <Text style={styles.emailDescription}>
+              Votre adresse email n'est pas encore vérifiée. Vérifiez votre email pour accéder à toutes les fonctionnalités.
+            </Text>
+            
+            <View style={styles.emailInfo}>
+              <Text style={styles.emailAddress}>{user.email}</Text>
+              {emailStatus && !emailStatus.canResendEmail && (
+                <Text style={styles.timeLeftText}>
+                  ⏰ Prochain envoi possible dans {emailStatus.timeLeftMinutes} minutes
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.emailButtons}>
+              <Button
+                mode="contained"
+                onPress={handleResendVerificationEmail}
+                disabled={!emailStatus?.canResendEmail || isLoadingEmail}
+                loading={isLoadingEmail}
+                style={[styles.emailButton, styles.resendButton]}
+                icon="email"
+              >
+                {emailStatus?.canResendEmail ? 'Renvoyer l\'email' : 'Email envoyé récemment'}
+              </Button>
+              
+              <Button
+                mode="outlined"
+                onPress={() => navigation.navigate('EmailVerification', { 
+                  email: user.email 
+                })}
+                style={[styles.emailButton, styles.verifyButton]}
+                icon="check-circle"
+              >
+                Saisir le code
+              </Button>
+            </View>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Paramètres de l'application */}
+      <Card style={styles.settingsCard}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>Paramètres</Text>
+          
+          <List.Item
+            title="Notifications"
+            description="Recevoir des notifications push"
+            left={(props) => <List.Icon {...props} icon="bell" />}
+            right={() => (
+              <Switch
+                value={notifications}
+                onValueChange={handleNotificationToggle}
+                color={colors.primary}
+              />
+            )}
+          />
+          
+          <Divider />
+          
+          <List.Item
+            title="Profil public"
+            description="Permettre aux autres utilisateurs de voir votre profil"
+            left={(props) => <List.Icon {...props} icon="account" />}
+            right={() => (
+              <Switch
+                value={isPublic}
+                onValueChange={handlePublicToggle}
+                color={colors.primary}
+              />
+            )}
+          />
+          
+          <Divider />
+          
+          <List.Item
+            title="Changer le mot de passe"
+            description="Modifier votre mot de passe"
+            left={(props) => <List.Icon {...props} icon="lock" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => navigation.navigate('ChangePassword')}
+          />
+        </Card.Content>
+      </Card>
+
+      {/* Informations sur l'application */}
+      <Card style={styles.infoCard}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>À propos</Text>
+          
+          <List.Item
+            title="Version"
+            description="1.0.0"
+            left={(props) => <List.Icon {...props} icon="information" />}
+          />
+          
+          <Divider />
+          
+          <List.Item
+            title="Conditions d'utilisation"
+            description="Lire les conditions d'utilisation"
+            left={(props) => <List.Icon {...props} icon="file-document" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => {
+              Alert.alert('Info', 'Fonctionnalité à venir');
+            }}
+          />
+          
+          <Divider />
+          
+          <List.Item
+            title="Politique de confidentialité"
+            description="Lire la politique de confidentialité"
+            left={(props) => <List.Icon {...props} icon="shield-account" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => {
+              Alert.alert('Info', 'Fonctionnalité à venir');
+            }}
+          />
+        </Card.Content>
+      </Card>
+
+      {/* Contact et support */}
+      <Card style={styles.contactCard}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>Contact</Text>
+          
+          <List.Item
+            title="Contacter le développeur"
+            description="Envoyer un email"
+            left={(props) => <List.Icon {...props} icon="email" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={openEmail}
+          />
+          
+          <Divider />
+          
+          <List.Item
+            title="Portfolio"
+            description="Voir mes projets"
+            left={(props) => <List.Icon {...props} icon="web" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={openPortfolio}
+          />
+        </Card.Content>
+      </Card>
+
+      {/* Crédits */}
+      <Card style={styles.creditsCard}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>Crédits</Text>
+          <View style={styles.creditsContent}>
+            <Text style={styles.creditsText}>
+              Développé avec ❤️ par
+            </Text>
+            <Text style={styles.developerName}>
+              Tristan Baldazzi
+            </Text>
+            <Text style={styles.creditsDescription}>
+              Application de suivi fitness complète
+            </Text>
+          </View>
+        </Card.Content>
+      </Card>
+
+      {/* Bouton de déconnexion */}
+      <View style={styles.logoutContainer}>
+        <Button
+          mode="contained"
+          onPress={handleLogout}
+          style={styles.logoutButton}
+          buttonColor={colors.error}
+          textColor="white"
+        >
+          Se déconnecter
+        </Button>
+      </View>
+
+      {/* Espacement en bas */}
+      <View style={styles.bottomSpacing} />
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  profileCard: {
+    margin: spacing.md,
+    elevation: 4,
+  },
+  profileContent: {
+    padding: spacing.lg,
+  },
+  profileInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    backgroundColor: colors.primary,
+    marginRight: spacing.md,
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    ...typography.h3,
+    color: colors.text,
+    fontWeight: 'bold',
+    marginBottom: spacing.xs,
+  },
+  userLevel: {
+    ...typography.body1,
+    color: colors.primary,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
+  userStats: {
+    ...typography.body2,
+    color: colors.textSecondary,
+  },
+  emailCard: {
+    margin: spacing.md,
+    marginTop: 0,
+    elevation: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.warning,
+  },
+  emailDescription: {
+    ...typography.body2,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+    lineHeight: 20,
+  },
+  emailInfo: {
+    marginBottom: spacing.md,
+  },
+  emailAddress: {
+    ...typography.body1,
+    color: colors.text,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
+  timeLeftText: {
+    ...typography.caption,
+    color: colors.warning,
+    fontStyle: 'italic',
+  },
+  emailButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  emailButton: {
+    flex: 1,
+  },
+  resendButton: {
+    // Styles spécifiques pour le bouton renvoyer
+  },
+  verifyButton: {
+    // Styles spécifiques pour le bouton vérifier
+  },
+  settingsCard: {
+    margin: spacing.md,
+    marginTop: 0,
+    elevation: 4,
+  },
+  infoCard: {
+    margin: spacing.md,
+    marginTop: 0,
+    elevation: 4,
+  },
+  contactCard: {
+    margin: spacing.md,
+    marginTop: 0,
+    elevation: 4,
+  },
+  creditsCard: {
+    margin: spacing.md,
+    marginTop: 0,
+    elevation: 4,
+  },
+  sectionTitle: {
+    ...typography.h4,
+    color: colors.text,
+    fontWeight: '600',
+    marginBottom: spacing.md,
+  },
+  creditsContent: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  creditsText: {
+    ...typography.body1,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  developerName: {
+    ...typography.h3,
+    color: colors.primary,
+    fontWeight: 'bold',
+    marginBottom: spacing.sm,
+  },
+  creditsDescription: {
+    ...typography.body2,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  logoutContainer: {
+    margin: spacing.md,
+    marginTop: spacing.lg,
+  },
+  logoutButton: {
+    paddingVertical: spacing.sm,
+  },
+  bottomSpacing: {
+    height: spacing.xl,
+  },
+});
+
+export default SettingsScreen;

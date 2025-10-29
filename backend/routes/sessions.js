@@ -1,0 +1,890 @@
+const express = require('express');
+const { body, validationResult } = require('express-validator');
+const Session = require('../models/Session');
+const User = require('../models/User');
+const Exercise = require('../models/Exercise');
+const { authenticateToken } = require('../middleware/auth');
+
+const router = express.Router();
+
+// @route   GET /api/sessions
+// @desc    Obtenir les sessions de l'utilisateur
+// @access  Private
+router.get('/', authenticateToken, async (req, res) => {
+  try {
+    const { isTemplate, category, difficulty } = req.query;
+    const userId = req.user._id;
+
+    const query = { creator: userId };
+    if (isTemplate !== undefined) query.isTemplate = isTemplate === 'true';
+    if (category) query.category = category;
+    if (difficulty) query.difficulty = difficulty;
+
+    const sessions = await Session.find(query)
+      .sort({ createdAt: -1 });
+
+    res.json({
+      sessions: sessions.map(session => ({
+        _id: session._id,
+        name: session.name,
+        description: session.description,
+        estimatedDuration: session.estimatedDuration,
+        difficulty: session.difficulty,
+        category: session.category,
+        exercises: session.exercises,
+        isPublic: session.isPublic,
+        isTemplate: session.isTemplate,
+        tags: session.tags,
+        completions: session.completions.length,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt
+      }))
+    });
+  } catch (error) {
+    console.error('Erreur récupération sessions:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la récupération des sessions'
+    });
+  }
+});
+
+// @route   GET /api/sessions/public
+// @desc    Obtenir les sessions publiques
+// @access  Private
+router.get('/public', authenticateToken, async (req, res) => {
+  try {
+    const { category, difficulty, limit = 20, page = 1 } = req.query;
+    const userId = req.user._id;
+
+    const query = { 
+      isPublic: true,
+      creator: { $ne: userId } // Exclure les sessions de l'utilisateur
+    };
+
+    if (category) query.category = category;
+    if (difficulty) query.difficulty = difficulty;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const sessions = await Session.find(query)
+      .populate('creator', 'username firstName lastName avatar level')
+      .sort({ 'completions': -1, createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Session.countDocuments(query);
+
+    res.json({
+      sessions: sessions.map(session => ({
+        _id: session._id,
+        name: session.name,
+        description: session.description,
+        estimatedDuration: session.estimatedDuration,
+        difficulty: session.difficulty,
+        category: session.category,
+        exercises: session.exercises,
+        tags: session.tags,
+        completions: session.completions.length,
+        creator: session.creator,
+        createdAt: session.createdAt
+      })),
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        totalSessions: total,
+        hasNext: skip + sessions.length < total,
+        hasPrev: parseInt(page) > 1
+      }
+    });
+  } catch (error) {
+    console.error('Erreur récupération sessions publiques:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la récupération des sessions publiques'
+    });
+  }
+});
+
+// GET /api/sessions/completed - Récupérer les séances terminées (historique)
+router.get('/completed', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Trouver toutes les séances qui ont des completions pour cet utilisateur
+    const sessionsWithCompletions = await Session.find({
+      'completions.user': userId
+    })
+    .populate('creator', 'username firstName lastName avatar level');
+
+    // Transformer les données pour créer une entrée pour chaque completion
+    const completedSessions = [];
+    
+    sessionsWithCompletions.forEach(session => {
+      // Trouver toutes les completions de cet utilisateur pour cette séance
+      const userCompletions = session.completions.filter(completion => 
+        completion.user.toString() === userId.toString()
+      );
+      
+      // Créer une entrée pour chaque completion
+      userCompletions.forEach(completion => {
+        completedSessions.push({
+          _id: session._id,
+          completionId: completion._id, // ID unique de la completion
+          name: session.name,
+          description: session.description,
+          creator: session.creator,
+          exercises: session.exercises,
+          estimatedDuration: session.estimatedDuration,
+          difficulty: session.difficulty,
+          category: session.category,
+          isPublic: session.isPublic,
+          tags: session.tags,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          // Données de completion
+          completedAt: completion.completedAt,
+          actualDuration: completion.actualDuration,
+          notes: completion.notes,
+          completedExercises: completion.exercises,
+          xpGained: completion.exercises ? 
+            completion.exercises.reduce((total, exercise) => 
+              total + (exercise.sets ? exercise.sets.filter(set => set.completed).length : 0), 0
+            ) * 10 : 0 // 10 XP par série complétée
+        });
+      });
+    });
+    
+    // Trier par date de completion (plus récentes en premier)
+    completedSessions.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+
+    res.json({
+      success: true,
+      sessions: completedSessions
+    });
+  } catch (error) {
+    console.error('Erreur récupération séances terminées:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la récupération de l\'historique'
+    });
+  }
+});
+
+// GET /api/sessions/completed/:id - Récupérer une séance terminée spécifique
+router.get('/completed/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    // Si l'ID contient un completionId (format: sessionId_completionId)
+    if (id.includes('_')) {
+      const [sessionId, completionId] = id.split('_');
+      
+      const session = await Session.findOne({
+        _id: sessionId,
+        'completions.user': userId,
+        'completions._id': completionId
+      }).populate('creator', 'username firstName lastName avatar level');
+
+      if (!session) {
+        return res.status(404).json({
+          message: 'Séance terminée non trouvée'
+        });
+      }
+
+      // Trouver la completion spécifique
+      const userCompletion = session.completions.find(completion => 
+        completion._id.toString() === completionId
+      );
+
+      if (!userCompletion) {
+        return res.status(404).json({
+          message: 'Séance terminée non trouvée'
+        });
+      }
+
+      // Transformer les données pour inclure les informations de completion
+      const completedSession = {
+        _id: session._id,
+        completionId: userCompletion._id,
+        name: session.name,
+        description: session.description,
+        creator: session.creator,
+        exercises: session.exercises,
+        estimatedDuration: session.estimatedDuration,
+        difficulty: session.difficulty,
+        category: session.category,
+        isPublic: session.isPublic,
+        tags: session.tags,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        // Données de completion
+        completedAt: userCompletion.completedAt,
+        actualDuration: userCompletion.actualDuration,
+        notes: userCompletion.notes,
+        completedExercises: userCompletion.exercises,
+        xpGained: userCompletion.exercises ? 
+          userCompletion.exercises.reduce((total, exercise) => 
+            total + (exercise.sets ? exercise.sets.filter(set => set.completed).length : 0), 0
+          ) * 10 : 0 // 10 XP par série complétée
+      };
+
+      res.json({
+        success: true,
+        session: completedSession
+      });
+    } else {
+      // Ancien format - récupérer la completion la plus récente
+      const session = await Session.findOne({
+        _id: id,
+        'completions.user': userId
+      }).populate('creator', 'username firstName lastName avatar level');
+
+      if (!session) {
+        return res.status(404).json({
+          message: 'Séance terminée non trouvée'
+        });
+      }
+
+      // Trouver la completion la plus récente
+      const userCompletions = session.completions.filter(completion => 
+        completion.user.toString() === userId.toString()
+      );
+      
+      const userCompletion = userCompletions.sort((a, b) => 
+        new Date(b.completedAt) - new Date(a.completedAt)
+      )[0];
+
+      if (!userCompletion) {
+        return res.status(404).json({
+          message: 'Séance terminée non trouvée'
+        });
+      }
+
+      // Transformer les données pour inclure les informations de completion
+      const completedSession = {
+        _id: session._id,
+        completionId: userCompletion._id,
+        name: session.name,
+        description: session.description,
+        creator: session.creator,
+        exercises: session.exercises,
+        estimatedDuration: session.estimatedDuration,
+        difficulty: session.difficulty,
+        category: session.category,
+        isPublic: session.isPublic,
+        tags: session.tags,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        // Données de completion
+        completedAt: userCompletion.completedAt,
+        actualDuration: userCompletion.actualDuration,
+        notes: userCompletion.notes,
+        completedExercises: userCompletion.exercises,
+        xpGained: userCompletion.exercises ? 
+          userCompletion.exercises.reduce((total, exercise) => 
+            total + (exercise.sets ? exercise.sets.filter(set => set.completed).length : 0), 0
+          ) * 10 : 0 // 10 XP par série complétée
+      };
+
+      res.json({
+        success: true,
+        session: completedSession
+      });
+    }
+  } catch (error) {
+    console.error('Erreur récupération séance terminée:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la récupération de la séance'
+    });
+  }
+});
+
+// @route   GET /api/sessions/:id
+// @desc    Obtenir une session spécifique
+// @access  Private
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const session = await Session.findOne({
+      _id: id,
+      $or: [
+        { creator: userId },
+        { isPublic: true }
+      ]
+    }).populate('creator', 'username firstName lastName avatar level');
+
+    if (!session) {
+      return res.status(404).json({
+        message: 'Session non trouvée'
+      });
+    }
+
+    res.json({
+      session: {
+        _id: session._id,
+        name: session.name,
+        description: session.description,
+        estimatedDuration: session.estimatedDuration,
+        difficulty: session.difficulty,
+        category: session.category,
+        exercises: session.exercises,
+        isPublic: session.isPublic,
+        isTemplate: session.isTemplate,
+        tags: session.tags,
+        completions: session.completions.length,
+        creator: session.creator,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        isOwner: session.creator._id.equals(userId)
+      }
+    });
+  } catch (error) {
+    console.error('Erreur récupération session:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la récupération de la session'
+    });
+  }
+});
+
+// @route   POST /api/sessions
+// @desc    Créer une nouvelle session
+// @access  Private
+router.post('/', authenticateToken, [
+  body('name').trim().isLength({ min: 1 }),
+  body('description').optional().trim(),
+  body('difficulty').optional().isIn(['easy', 'medium', 'hard']),
+  body('category').optional().isIn(['Force', 'Cardio', 'Flexibilité', 'Mixte']),
+  body('estimatedDuration').optional().isInt({ min: 1 }),
+  body('exercises').isArray({ min: 1 }),
+  body('exercises.*.name').trim().isLength({ min: 1 }),
+  body('exercises.*.category').isIn(['Haut du corps', 'Bas du corps', 'Pectoraux', 'Dos', 'Triceps', 'Biceps', 'Épaules', 'Abdominaux', 'Cardio', 'Force', 'Flexibilité', 'Mixte']),
+  body('exercises.*.muscleGroups').optional().isArray(),
+  body('exercises.*.sets').isArray({ min: 1 }),
+  body('exercises.*.sets.*.reps').isInt({ min: 1 }),
+  body('exercises.*.sets.*.weight').optional().isFloat({ min: 0 }),
+  body('exercises.*.sets.*.duration').optional().isInt({ min: 0 }),
+  body('exercises.*.sets.*.distance').optional().isFloat({ min: 0 }),
+  body('exercises.*.sets.*.restTime').optional().isInt({ min: 0 }),
+  body('exercises.*.order').isInt({ min: 0 }),
+  body('tags').optional().isArray()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('Erreurs de validation POST session:', errors.array());
+      console.log('Données reçues:', JSON.stringify(req.body, null, 2));
+      return res.status(400).json({
+        message: 'Données invalides',
+        errors: errors.array()
+      });
+    }
+
+    const {
+      name,
+      description,
+      difficulty = 'medium',
+      category = 'Mixte',
+      estimatedDuration = 60,
+      exercises,
+      tags = []
+    } = req.body;
+
+    // Valider les exercices
+    for (let i = 0; i < exercises.length; i++) {
+      const exercise = exercises[i];
+      if (!exercise.name || !exercise.sets || exercise.sets.length === 0) {
+        return res.status(400).json({
+          message: `Exercice ${i + 1}: nom et séries requis`
+        });
+      }
+
+      for (let j = 0; j < exercise.sets.length; j++) {
+        const set = exercise.sets[j];
+        if (typeof set.reps !== 'number' || set.reps <= 0) {
+          return res.status(400).json({
+            message: `Exercice ${i + 1}, Série ${j + 1}: répétitions requises`
+          });
+        }
+      }
+    }
+
+    const session = new Session({
+      name,
+      description,
+      creator: req.user._id,
+      difficulty,
+      category,
+      estimatedDuration,
+      exercises: exercises.map((exercise, index) => ({
+        name: exercise.name,
+        category: exercise.category || 'Force',
+        muscleGroups: exercise.muscleGroups || [],
+        sets: exercise.sets.map(set => ({
+          reps: set.reps,
+          weight: set.weight || 0,
+          duration: set.duration || 0,
+          distance: set.distance || 0,
+          restTime: set.restTime || 60,
+          notes: set.notes || '',
+          completed: false
+        })),
+        order: exercise.order || index + 1,
+        isCompleted: false
+      })),
+      tags
+    });
+
+    // Calculer la durée estimée
+    session.calculateEstimatedDuration();
+
+    await session.save();
+
+    res.status(201).json({
+      message: 'Session créée avec succès',
+      session: {
+        _id: session._id,
+        name: session.name,
+        description: session.description,
+        estimatedDuration: session.estimatedDuration,
+        difficulty: session.difficulty,
+        category: session.category,
+        exercises: session.exercises,
+        isPublic: session.isPublic,
+        isTemplate: session.isTemplate,
+        tags: session.tags,
+        createdAt: session.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Erreur création session:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la création de la session'
+    });
+  }
+});
+
+// @route   PUT /api/sessions/:id
+// @desc    Mettre à jour une session
+// @access  Private
+router.put('/:id', authenticateToken, [
+  body('name').optional().trim().isLength({ min: 1 }),
+  body('description').optional().trim(),
+  body('difficulty').optional().isIn(['easy', 'medium', 'hard']),
+  body('category').optional().isIn(['Force', 'Cardio', 'Flexibilité', 'Mixte']),
+  body('estimatedDuration').optional().isInt({ min: 1 }),
+  body('exercises').optional().isArray({ min: 1 }),
+  body('exercises.*.name').optional().trim().isLength({ min: 1 }),
+  body('exercises.*.category').optional().isIn(['Haut du corps', 'Bas du corps', 'Pectoraux', 'Dos', 'Triceps', 'Biceps', 'Épaules', 'Abdominaux', 'Cardio', 'Force', 'Flexibilité', 'Mixte']),
+  body('exercises.*.muscleGroups').optional().isArray(),
+  body('exercises.*.sets').optional().isArray({ min: 1 }),
+  body('exercises.*.sets.*.reps').optional().isInt({ min: 1 }),
+  body('exercises.*.sets.*.weight').optional().isFloat({ min: 0 }),
+  body('exercises.*.sets.*.duration').optional().isInt({ min: 0 }),
+  body('exercises.*.sets.*.distance').optional().isFloat({ min: 0 }),
+  body('exercises.*.sets.*.restTime').optional().isInt({ min: 0 }),
+  body('exercises.*.order').optional().isInt({ min: 0 }),
+  body('isPublic').optional().isBoolean(),
+  body('tags').optional().isArray()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        message: 'Données invalides',
+        errors: errors.array()
+      });
+    }
+
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const session = await Session.findOne({
+      _id: id,
+      creator: userId
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        message: 'Session non trouvée ou accès non autorisé'
+      });
+    }
+
+    const updateData = {};
+    if (req.body.name) updateData.name = req.body.name;
+    if (req.body.description !== undefined) updateData.description = req.body.description;
+    if (req.body.difficulty) updateData.difficulty = req.body.difficulty;
+    if (req.body.category) updateData.category = req.body.category;
+    if (req.body.estimatedDuration) updateData.estimatedDuration = req.body.estimatedDuration;
+    if (req.body.isPublic !== undefined) updateData.isPublic = req.body.isPublic;
+    if (req.body.tags) updateData.tags = req.body.tags;
+    
+    // Mise à jour des exercices si fournis
+    if (req.body.exercises) {
+      updateData.exercises = req.body.exercises.map((exercise, index) => ({
+        name: exercise.name,
+        category: exercise.category || 'Force',
+        muscleGroups: exercise.muscleGroups || [],
+        sets: exercise.sets.map(set => ({
+          reps: set.reps,
+          weight: set.weight || 0,
+          duration: set.duration || 0,
+          distance: set.distance || 0,
+          restTime: set.restTime || 60,
+          notes: set.notes || '',
+          completed: set.completed || false
+        })),
+        order: exercise.order || index + 1,
+        isCompleted: exercise.isCompleted || false
+      }));
+    }
+
+    const updatedSession = await Session.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    res.json({
+      message: 'Session mise à jour avec succès',
+      session: {
+        _id: updatedSession._id,
+        name: updatedSession.name,
+        description: updatedSession.description,
+        estimatedDuration: updatedSession.estimatedDuration,
+        difficulty: updatedSession.difficulty,
+        category: updatedSession.category,
+        exercises: updatedSession.exercises,
+        isPublic: updatedSession.isPublic,
+        isTemplate: updatedSession.isTemplate,
+        tags: updatedSession.tags,
+        updatedAt: updatedSession.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('Erreur mise à jour session:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la mise à jour de la session'
+    });
+  }
+});
+
+// @route   DELETE /api/sessions/:id
+// @desc    Supprimer une session
+// @access  Private
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const session = await Session.findOne({
+      _id: id,
+      creator: userId
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        message: 'Session non trouvée ou accès non autorisé'
+      });
+    }
+
+    await Session.findByIdAndDelete(id);
+
+    res.json({
+      message: 'Session supprimée avec succès'
+    });
+  } catch (error) {
+    console.error('Erreur suppression session:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la suppression de la session'
+    });
+  }
+});
+
+// @route   POST /api/sessions/:id/copy
+// @desc    Copier une session
+// @access  Private
+router.post('/:id/copy', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const originalSession = await Session.findOne({
+      _id: id,
+      $or: [
+        { creator: userId },
+        { isPublic: true }
+      ]
+    });
+
+    if (!originalSession) {
+      return res.status(404).json({
+        message: 'Session non trouvée'
+      });
+    }
+
+    // Dupliquer la session
+    const duplicatedSession = originalSession.duplicate(userId);
+    
+    // Gérer la copie des exercices personnalisés
+    const exerciseMapping = new Map(); // Pour mapper les anciens IDs aux nouveaux
+    
+    for (let i = 0; i < duplicatedSession.exercises.length; i++) {
+      const exercise = duplicatedSession.exercises[i];
+      
+      // Vérifier si c'est un exercice personnalisé (pas un exercice par défaut)
+      const originalExercise = await Exercise.findOne({
+        name: exercise.name,
+        category: exercise.category,
+        isCustom: true,
+        creator: originalSession.creator
+      });
+      
+      if (originalExercise) {
+        // C'est un exercice personnalisé, on le copie
+        const copiedExercise = new Exercise({
+          name: `${originalExercise.name} (Copié)`,
+          description: originalExercise.description,
+          category: originalExercise.category,
+          muscleGroups: originalExercise.muscleGroups,
+          creator: userId,
+          isCustom: true,
+          isPublic: false
+        });
+        
+        await copiedExercise.save();
+        
+        // Mapper l'ancien nom au nouveau nom pour la séance
+        exerciseMapping.set(exercise.name, copiedExercise.name);
+        duplicatedSession.exercises[i].name = copiedExercise.name;
+      }
+    }
+    
+    await duplicatedSession.save();
+
+    res.status(201).json({
+      message: 'Session copiée avec succès',
+      session: {
+        _id: duplicatedSession._id,
+        name: duplicatedSession.name,
+        description: duplicatedSession.description,
+        estimatedDuration: duplicatedSession.estimatedDuration,
+        difficulty: duplicatedSession.difficulty,
+        category: duplicatedSession.category,
+        exercises: duplicatedSession.exercises,
+        tags: duplicatedSession.tags,
+        createdAt: duplicatedSession.createdAt
+      },
+      copiedExercises: exerciseMapping.size > 0 ? Array.from(exerciseMapping.entries()).map(([oldName, newName]) => ({
+        originalName: oldName,
+        copiedName: newName
+      })) : []
+    });
+  } catch (error) {
+    console.error('Erreur copie session:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la copie de la session'
+    });
+  }
+});
+
+// POST /api/sessions/:id/complete - Terminer une séance
+router.post('/:id/complete', authenticateToken, async (req, res) => {
+  try {
+    console.log('🚀 === DÉBUT TERMINAISON SÉANCE ===');
+    const { id } = req.params;
+    const userId = req.user._id;
+    const { actualDuration, xpGained } = req.body;
+    let { exercises } = req.body;
+
+    console.log('📥 Données reçues:', {
+      sessionId: id,
+      userId: userId,
+      actualDuration,
+      xpGained,
+      exercisesCount: exercises ? exercises.length : 0
+    });
+
+    // Vérifier que la séance existe
+    const session = await Session.findById(id);
+
+    if (!session) {
+      console.log('❌ Session non trouvée');
+      return res.status(404).json({
+        message: 'Session non trouvée'
+      });
+    }
+
+    console.log('✅ Session trouvée:', {
+      name: session.name,
+      exercisesCount: session.exercises.length,
+      completionsCount: session.completions.length
+    });
+
+    // Debug détaillé des exercices reçus
+    console.log('🔍 === ANALYSE DES EXERCICES REÇUS ===');
+    console.log('📦 Exercices bruts:', JSON.stringify(exercises, null, 2));
+    
+    if (exercises && exercises.length > 0) {
+      console.log('📊 Exercices reçus du frontend:');
+      exercises.forEach((exercise, exerciseIndex) => {
+        console.log(`  Exercice ${exerciseIndex + 1}: ${exercise.name}`);
+        console.log(`  Sets:`, JSON.stringify(exercise.sets, null, 2));
+        exercise.sets.forEach((set, setIndex) => {
+          console.log(`    Série ${setIndex + 1}:`, {
+            reps: set.reps,
+            weight: set.weight,
+            completed: set.completed
+          });
+        });
+      });
+    } else {
+      console.log('⚠️  AUCUN EXERCICE REÇU DU FRONTEND !');
+    }
+
+    // Si pas d'exercices fournis, utiliser les exercices originaux
+    if (!exercises || exercises.length === 0) {
+      console.log('🔄 Pas d\'exercices fournis, utilisation des exercices originaux');
+      exercises = session.exercises.map(exercise => ({
+        name: exercise.name,
+        category: exercise.category,
+        sets: exercise.sets.map(set => ({
+          reps: set.reps,
+          weight: set.weight,
+          duration: set.duration || 0,
+          distance: set.distance || 0,
+          completed: false // Par défaut, pas complété
+        }))
+      }));
+      console.log('📋 Exercices originaux utilisés:', exercises.length);
+    }
+
+    // Fonction pour mapper les catégories vers les valeurs enum correctes
+    const mapCategoryToEnum = (category) => {
+      const categoryMap = {
+        'strength': 'Force',
+        'dos': 'Dos',
+        'haut du corps': 'Haut du corps',
+        'bas du corps': 'Bas du corps',
+        'pectoraux': 'Pectoraux',
+        'triceps': 'Triceps',
+        'biceps': 'Biceps',
+        'épaules': 'Épaules',
+        'abdominaux': 'Abdominaux',
+        'cardio': 'Cardio',
+        'flexibilité': 'Flexibilité',
+        'mixte': 'Mixte'
+      };
+      return categoryMap[category] || 'Force'; // Valeur par défaut
+    };
+
+    // Corriger les catégories des exercices
+    console.log('🔧 === MAPPING DES CATÉGORIES ===');
+    exercises = exercises.map(exercise => {
+      const originalCategory = exercise.category;
+      const mappedCategory = mapCategoryToEnum(exercise.category);
+      console.log(`📝 ${exercise.name}: "${originalCategory}" → "${mappedCategory}"`);
+      return {
+        ...exercise,
+        category: mappedCategory
+      };
+    });
+
+    // Corriger la catégorie de la session si nécessaire
+    if (session.category && !['Force', 'Cardio', 'Flexibilité', 'Mixte'].includes(session.category)) {
+      const originalSessionCategory = session.category;
+      session.category = mapCategoryToEnum(session.category);
+      console.log(`📝 Session: "${originalSessionCategory}" → "${session.category}"`);
+    }
+
+    // Corriger les catégories des exercices existants dans la session
+    console.log('🔧 === CORRECTION DES EXERCICES DE LA SESSION ===');
+    session.exercises.forEach((exercise, index) => {
+      if (exercise.category && !['Haut du corps', 'Bas du corps', 'Pectoraux', 'Dos', 'Triceps', 'Biceps', 'Épaules', 'Abdominaux', 'Cardio', 'Force', 'Flexibilité', 'Mixte'].includes(exercise.category)) {
+        const originalCategory = exercise.category;
+        exercise.category = mapCategoryToEnum(exercise.category);
+        console.log(`📝 Exercice ${index + 1} (${exercise.name}): "${originalCategory}" → "${exercise.category}"`);
+      }
+    });
+
+    // Créer la completion avec les exercices modifiés
+    console.log('🏗️  === CRÉATION DE LA COMPLETION ===');
+    const completion = {
+      user: userId,
+      completedAt: new Date(),
+      actualDuration: actualDuration || session.estimatedDuration,
+      notes: '',
+      exercises: exercises.map(exercise => ({
+        name: exercise.name,
+        sets: exercise.sets.map(set => ({
+          reps: set.reps,
+          weight: set.weight,
+          duration: set.duration || 0,
+          distance: set.distance || 0,
+          completed: set.completed
+        }))
+      }))
+    };
+
+    console.log('💾 Completion créée:', {
+      user: completion.user,
+      actualDuration: completion.actualDuration,
+      exercisesCount: completion.exercises.length,
+      firstExercise: completion.exercises[0] ? {
+        name: completion.exercises[0].name,
+        setsCount: completion.exercises[0].sets.length,
+        firstSet: completion.exercises[0].sets[0]
+      } : null
+    });
+
+    // Ajouter la completion à la séance
+    console.log('📝 Ajout de la completion à la séance...');
+    session.completions.push(completion);
+    await session.save();
+    console.log('✅ Completion sauvegardée avec succès !');
+
+    // Calculer l'XP gagné
+    console.log('🎯 === CALCUL DE L\'XP ===');
+    const calculatedXP = exercises.reduce((total, exercise) => 
+      total + (exercise.sets ? exercise.sets.filter(set => set.completed).length : 0), 0
+    ) * 10;
+    
+    console.log('💰 XP calculé:', calculatedXP);
+
+    // Mettre à jour les statistiques de l'utilisateur
+    console.log('👤 Mise à jour des statistiques utilisateur...');
+    const User = require('../models/User');
+    await User.findByIdAndUpdate(userId, {
+      $inc: {
+        totalSessionsCompleted: 1,
+        totalXP: calculatedXP
+      }
+    });
+    console.log('✅ Statistiques utilisateur mises à jour');
+
+    // Récupérer la séance mise à jour
+    const updatedSession = await Session.findById(id)
+      .populate('creator', 'username firstName lastName avatar level');
+
+    console.log('🎉 === SÉANCE TERMINÉE AVEC SUCCÈS ===');
+    console.log('📊 Résumé final:', {
+      sessionName: updatedSession.name,
+      completionsCount: updatedSession.completions.length,
+      xpGained: calculatedXP
+    });
+
+    res.json({
+      success: true,
+      message: 'Séance terminée avec succès',
+      session: updatedSession,
+      xpGained: calculatedXP
+    });
+  } catch (error) {
+    console.error('❌ ERREUR completion session:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la finalisation de la session'
+    });
+  }
+});
+
+module.exports = router;
