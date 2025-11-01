@@ -1,0 +1,10 @@
+{
+  "name": "fittracker",
+  "version": "1.0.0",
+  "description": "FitTracker - Monorepo",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ]
+}
