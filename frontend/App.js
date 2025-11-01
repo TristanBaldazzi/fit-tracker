@@ -15,6 +15,7 @@ import ChangePasswordScreen from './src/screens/auth/ChangePasswordScreen';
 import ForgotPasswordScreen from './src/screens/auth/ForgotPasswordScreen';
 import HomeScreen from './src/screens/main/HomeScreen';
 import SessionsScreen from './src/screens/main/SessionsScreen';
+import CalendarScreen from './src/screens/main/CalendarScreen';
 import ExercisesScreen from './src/screens/main/ExercisesScreen';
 import FriendsScreen from './src/screens/main/FriendsScreen';
 import ProfileScreen from './src/screens/main/ProfileScreen';
@@ -53,6 +54,8 @@ function MainTabNavigator() {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'Sessions') {
             iconName = focused ? 'list' : 'list-outline';
+          } else if (route.name === 'Calendar') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
           } else if (route.name === 'Exercises') {
             iconName = focused ? 'fitness' : 'fitness-outline';
           } else if (route.name === 'Friends') {
@@ -91,6 +94,11 @@ function MainTabNavigator() {
         name="Sessions" 
         component={SessionsScreen} 
         options={{ title: 'Séances' }}
+      />
+      <Tab.Screen 
+        name="Calendar" 
+        component={CalendarScreen} 
+        options={{ title: 'Calendrier' }}
       />
       <Tab.Screen 
         name="Exercises" 
