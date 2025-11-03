@@ -203,8 +203,8 @@ router.post('/apple', [
       });
     }
     
-    // Essayer d'extraire l'email de l'identityToken si l'email n'est pas fourni directement
-    if ((!email || email === null || email === '') && identityToken) {
+    // Essayer d'extraire les informations de l'identityToken
+    if (identityToken) {
       try {
         // L'identityToken est un JWT (base64url)
         const tokenParts = identityToken.split('.');
@@ -219,22 +219,38 @@ router.post('/apple', [
           payload = payload.replace(/-/g, '+').replace(/_/g, '/');
           
           const decodedPayload = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
-          if (decodedPayload.email) {
+          
+          // Logger tout le contenu du token pour debug
+          console.log('🔍 [Apple Sign-In] Contenu du identityToken:', {
+            email: decodedPayload.email || 'N/A',
+            email_verified: decodedPayload.email_verified || 'N/A',
+            has_name: !!decodedPayload.name,
+            name: decodedPayload.name || 'N/A',
+            all_keys: Object.keys(decodedPayload)
+          });
+          
+          // Extraire l'email si non fourni
+          if ((!email || email === null || email === '') && decodedPayload.email) {
             email = decodedPayload.email;
             console.log('📧 [Apple Sign-In] Email extrait du identityToken:', email);
           }
-          // Essayer aussi d'extraire le nom si disponible dans le token
+          
+          // Essayer d'extraire le nom si disponible dans le token
+          // Note: Apple ne fournit généralement pas firstName/lastName dans l'identityToken,
+          // seulement dans credential.fullName lors de la première authentification
           if (decodedPayload.name) {
-            if (!firstName && decodedPayload.name.firstName) {
+            if ((!firstName || firstName === null) && decodedPayload.name.firstName) {
               firstName = decodedPayload.name.firstName;
+              console.log('👤 [Apple Sign-In] firstName extrait du identityToken:', firstName);
             }
-            if (!lastName && decodedPayload.name.lastName) {
+            if ((!lastName || lastName === null) && decodedPayload.name.lastName) {
               lastName = decodedPayload.name.lastName;
+              console.log('👤 [Apple Sign-In] lastName extrait du identityToken:', lastName);
             }
           }
         }
       } catch (error) {
-        console.log('⚠️ [Apple Sign-In] Impossible d\'extraire l\'email du identityToken:', error.message);
+        console.log('⚠️ [Apple Sign-In] Impossible d\'extraire les données du identityToken:', error.message);
       }
     }
     
@@ -302,17 +318,25 @@ router.post('/apple', [
     
     console.log('📝 [Apple Sign-In] firstName:', trimmedFirstName, 'lastName:', trimmedLastName);
     
-    // Si firstName ou lastName manquent, générer des valeurs temporaires basées sur appleId
+    // Si firstName ou lastName manquent, générer des valeurs temporaires
+    // L'utilisateur pourra compléter son profil plus tard
     if (!trimmedFirstName || trimmedFirstName.length === 0) {
-      // Utiliser les 8 premiers caractères de l'appleId pour générer un prénom temporaire
-      trimmedFirstName = `User${appleId.substring(0, 6)}`;
+      // Utiliser une partie unique de l'appleId pour générer un prénom temporaire unique
+      // Prendre les 8 derniers caractères de l'appleId avant le dernier point
+      const appleIdParts = appleId.split('.');
+      const uniqueId = appleIdParts[appleIdParts.length - 2] || appleId.substring(appleId.length - 8);
+      trimmedFirstName = `User${uniqueId.substring(0, 6)}`;
       console.log('📝 [Apple Sign-In] Génération firstName temporaire:', trimmedFirstName);
+      console.log('ℹ️ [Apple Sign-In] L\'utilisateur pourra mettre à jour son prénom dans son profil');
     }
     
     if (!trimmedLastName || trimmedLastName.length === 0) {
-      // Utiliser une partie de l'appleId pour générer un nom temporaire
-      trimmedLastName = `Apple${appleId.substring(6, 12)}`;
+      // Utiliser une partie unique de l'appleId pour générer un nom temporaire unique
+      const appleIdParts = appleId.split('.');
+      const uniqueId = appleIdParts[appleIdParts.length - 2] || appleId.substring(appleId.length - 8);
+      trimmedLastName = `Apple${uniqueId.substring(6, 12)}`;
       console.log('📝 [Apple Sign-In] Génération lastName temporaire:', trimmedLastName);
+      console.log('ℹ️ [Apple Sign-In] L\'utilisateur pourra mettre à jour son nom dans son profil');
     }
 
     // Générer un nom d'utilisateur unique
