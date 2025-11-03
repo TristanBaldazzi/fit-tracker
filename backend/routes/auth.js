@@ -253,22 +253,30 @@ router.post('/apple', [
 
     // Nouvel utilisateur - inscription
     console.log('📝 [Apple Sign-In] Nouvel utilisateur détecté');
-    // Vérifier que firstName et lastName sont fournis pour un nouvel utilisateur
-    const trimmedFirstName = firstName?.trim();
-    const trimmedLastName = lastName?.trim();
+    
+    // Traiter firstName et lastName
+    // Si Apple ne fournit pas ces données (connexions suivantes ou première fois sans données),
+    // on génère des valeurs temporaires basées sur l'appleId
+    let trimmedFirstName = firstName?.trim();
+    let trimmedLastName = lastName?.trim();
     
     console.log('📝 [Apple Sign-In] firstName:', trimmedFirstName, 'lastName:', trimmedLastName);
     
-    if (!trimmedFirstName || trimmedFirstName.length === 0 || 
-        !trimmedLastName || trimmedLastName.length === 0) {
-      console.error('❌ [Apple Sign-In] Prénom ou nom manquant pour inscription');
-      return res.status(400).json({
-        message: 'Prénom et nom sont requis pour l\'inscription'
-      });
+    // Si firstName ou lastName manquent, générer des valeurs temporaires basées sur appleId
+    if (!trimmedFirstName || trimmedFirstName.length === 0) {
+      // Utiliser les 8 premiers caractères de l'appleId pour générer un prénom temporaire
+      trimmedFirstName = `User${appleId.substring(0, 6)}`;
+      console.log('📝 [Apple Sign-In] Génération firstName temporaire:', trimmedFirstName);
+    }
+    
+    if (!trimmedLastName || trimmedLastName.length === 0) {
+      // Utiliser une partie de l'appleId pour générer un nom temporaire
+      trimmedLastName = `Apple${appleId.substring(6, 12)}`;
+      console.log('📝 [Apple Sign-In] Génération lastName temporaire:', trimmedLastName);
     }
 
     // Générer un nom d'utilisateur unique
-    const baseUsername = `${trimmedFirstName.toLowerCase()}${trimmedLastName.toLowerCase()}`;
+    const baseUsername = `${trimmedFirstName.toLowerCase()}${trimmedLastName.toLowerCase()}`.replace(/[^a-z0-9]/g, '');
     let username = baseUsername;
     let counter = 1;
     
