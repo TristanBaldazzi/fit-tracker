@@ -1,5 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { authenticateToken } = require('../middleware/auth');
@@ -68,16 +69,28 @@ router.post('/register', [
 
     await user.save();
 
-    // Envoyer l'email de vérification
-    const emailResult = await emailService.sendVerificationEmail(email, verificationCode);
-    
-    if (!emailResult.success) {
-      console.error('Erreur envoi email:', emailResult.error);
-      // On continue même si l'email échoue, l'utilisateur peut demander un nouveau code
-    }
-
     // Générer le token
     const token = generateToken(user._id);
+
+    // Envoyer l'email de vérification en arrière-plan (non bloquant)
+    // Avec un timeout pour éviter que ça bloque trop longtemps
+    const sendEmailWithTimeout = async () => {
+      try {
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Email timeout')), 5000)
+        );
+        const emailPromise = emailService.sendVerificationEmail(email, verificationCode);
+        await Promise.race([emailPromise, timeoutPromise]);
+      } catch (error) {
+        console.error('Erreur envoi email:', error.message);
+        // L'utilisateur peut demander un nouveau code plus tard
+      }
+    };
+    
+    // Lancer l'envoi d'email en arrière-plan sans attendre
+    sendEmailWithTimeout().catch(err => {
+      console.error('Erreur lors de l\'envoi asynchrone de l\'email:', err);
+    });
 
     res.status(201).json({
       message: 'Inscription réussie. Vérifiez votre email pour activer votre compte.',
@@ -92,7 +105,7 @@ router.post('/register', [
         xp: user.xp,
         emailVerified: user.emailVerified
       },
-      emailSent: emailResult.success
+      emailSent: true // On assume que l'email sera envoyé, même si ça échoue l'utilisateur peut demander un nouveau code
     });
   } catch (error) {
     console.error('Erreur d\'inscription:', error);

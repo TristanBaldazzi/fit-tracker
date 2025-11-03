@@ -91,40 +91,29 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     message: 'FitTrack API is running!', 
     author: 'Tristan Baldazzi',
-    timestamp: new Date().toISOString(),
-    mongoConnected: mongoose.connection.readyState === 1
+    timestamp: new Date().toISOString()
   });
 });
 
-// Route de debug MongoDB - doit être avant la route 404
+// Route de debug MongoDB
 app.get('/api/debug/mongodb', (req, res) => {
-  try {
-    const mongoState = mongoose.connection.readyState;
-    const states = {
-      0: 'disconnected',
-      1: 'connected',
-      2: 'connecting',
-      3: 'disconnecting'
-    };
-    
-    res.json({
-      status: states[mongoState] || 'unknown',
-      readyState: mongoState,
-      host: mongoose.connection.host || 'not connected',
-      name: mongoose.connection.name || 'not connected',
-      hasDb: !!mongoose.connection.db,
-      uriConfigured: !!process.env.MONGODB_URI,
-      uriMasked: process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/:[^:@]+@/, ':****@') : 'not set',
-      uriLength: process.env.MONGODB_URI ? process.env.MONGODB_URI.length : 0,
-      env: process.env.NODE_ENV || 'not set'
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: 'Erreur lors de la récupération des infos MongoDB',
-      message: error.message,
-      uriConfigured: !!process.env.MONGODB_URI
-    });
-  }
+  const mongoState = mongoose.connection.readyState;
+  const states = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting'
+  };
+  
+  res.json({
+    status: states[mongoState] || 'unknown',
+    readyState: mongoState,
+    host: mongoose.connection.host,
+    name: mongoose.connection.name,
+    hasDb: !!mongoose.connection.db,
+    uriConfigured: !!process.env.MONGODB_URI,
+    uriMasked: process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/:[^:@]+@/, ':****@') : 'not set'
+  });
 });
 
 // Gestion des erreurs
@@ -143,21 +132,22 @@ app.use('*', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-// Démarrer le serveur (même si MongoDB échoue, pour permettre le debug)
+// Démarrer le serveur seulement après la connexion MongoDB
 const startServer = async () => {
-  // Essayer de connecter MongoDB, mais ne pas bloquer le démarrage du serveur
-  connectDB().catch((error) => {
-    console.error('⚠️ MongoDB non connecté, mais le serveur démarre quand même pour le debug');
-    console.error('   Vous pouvez utiliser /api/debug/mongodb pour diagnostiquer');
-  });
-  
-  // Démarrer le serveur dans tous les cas
-  app.listen(PORT, () => {
-    console.log(`🚀 Serveur FitTrack démarré sur le port ${PORT}`);
-    console.log(`📱 API disponible sur http://localhost:${PORT}/api`);
-    console.log(`👨‍💻 Développé par Tristan Baldazzi`);
-    console.log(`🔍 Route de debug: /api/debug/mongodb`);
-  });
+  try {
+    // Connecter MongoDB d'abord
+    await connectDB();
+    
+    // Ensuite démarrer le serveur
+    app.listen(PORT, () => {
+      console.log(`🚀 Serveur FitTrack démarré sur le port ${PORT}`);
+      console.log(`📱 API disponible sur http://localhost:${PORT}/api`);
+      console.log(`👨‍💻 Développé par Tristan Baldazzi`);
+    });
+  } catch (error) {
+    console.error('❌ Impossible de démarrer le serveur:', error.message);
+    process.exit(1);
+  }
 };
 
 // Démarrer l'application

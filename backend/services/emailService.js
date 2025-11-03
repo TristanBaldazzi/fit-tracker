@@ -10,6 +10,9 @@ class EmailService {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASSWORD,
       },
+      connectionTimeout: 5000, // Timeout de connexion: 5 secondes
+      socketTimeout: 5000, // Timeout socket: 5 secondes
+      greetingTimeout: 5000, // Timeout greeting: 5 secondes
     });
   }
 
