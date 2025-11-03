@@ -193,7 +193,7 @@ router.post('/apple', [
     // Log pour déboguer - AFFICHER TOUT LE BODY
     console.log('📱 [Apple Sign-In] Body complet:', JSON.stringify(req.body, null, 2));
     
-    const { appleId, firstName, lastName, email } = req.body;
+    let { appleId, firstName, lastName, email, identityToken } = req.body;
     
     // Vérifier que appleId existe
     if (!appleId) {
@@ -201,6 +201,41 @@ router.post('/apple', [
       return res.status(400).json({
         message: 'Apple ID requis'
       });
+    }
+    
+    // Essayer d'extraire l'email de l'identityToken si l'email n'est pas fourni directement
+    if ((!email || email === null || email === '') && identityToken) {
+      try {
+        // L'identityToken est un JWT (base64url)
+        const tokenParts = identityToken.split('.');
+        if (tokenParts.length === 3) {
+          // Décoder le payload (base64url vers base64 puis JSON)
+          let payload = tokenParts[1];
+          // Ajouter le padding si nécessaire pour base64
+          while (payload.length % 4) {
+            payload += '=';
+          }
+          // Remplacer - et _ pour base64 standard
+          payload = payload.replace(/-/g, '+').replace(/_/g, '/');
+          
+          const decodedPayload = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
+          if (decodedPayload.email) {
+            email = decodedPayload.email;
+            console.log('📧 [Apple Sign-In] Email extrait du identityToken:', email);
+          }
+          // Essayer aussi d'extraire le nom si disponible dans le token
+          if (decodedPayload.name) {
+            if (!firstName && decodedPayload.name.firstName) {
+              firstName = decodedPayload.name.firstName;
+            }
+            if (!lastName && decodedPayload.name.lastName) {
+              lastName = decodedPayload.name.lastName;
+            }
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ [Apple Sign-In] Impossible d\'extraire l\'email du identityToken:', error.message);
+      }
     }
     
     // Valider email si fourni (peut être null/undefined)
@@ -229,8 +264,13 @@ router.post('/apple', [
       // Mettre à jour l'email si fourni et différent
       if (email && email !== user.email) {
         user.email = email;
-        await user.save();
       }
+      // L'email est vérifié via Apple Sign-In, donc on le marque comme vérifié
+      if (!user.emailVerified) {
+        user.emailVerified = true;
+        console.log('✅ [Apple Sign-In] Email marqué comme vérifié');
+      }
+      await user.save();
       
       const token = generateToken(user._id);
       
@@ -290,7 +330,9 @@ router.post('/apple', [
       firstName: trimmedFirstName,
       lastName: trimmedLastName,
       username,
-      email: email || null
+      email: email || null,
+      // L'email est vérifié via Apple Sign-In
+      emailVerified: true
     });
 
     await user.save();
