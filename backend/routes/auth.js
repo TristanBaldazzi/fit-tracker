@@ -191,7 +191,8 @@ router.post('/apple', [
       });
     }
     
-    // Log pour déboguer
+    // Log pour déboguer - AFFICHER TOUT LE BODY
+    console.log('📱 [Apple Sign-In] Body complet:', JSON.stringify(req.body, null, 2));
     console.log('📱 [Apple Sign-In] Données reçues:', {
       appleId: req.body.appleId,
       firstName: req.body.firstName,
@@ -201,10 +202,19 @@ router.post('/apple', [
     
     const { appleId, firstName, lastName, email } = req.body;
 
+    // Vérifier que appleId existe
+    if (!appleId) {
+      console.error('❌ [Apple Sign-In] appleId manquant');
+      return res.status(400).json({
+        message: 'Apple ID requis'
+      });
+    }
+
     // Chercher l'utilisateur existant
     let user = await User.findOne({ appleId });
 
     if (user) {
+      console.log('✅ [Apple Sign-In] Utilisateur trouvé:', user.email || user.username);
       // Utilisateur existant - connexion
       // Mettre à jour l'email si fourni et différent
       if (email && email !== user.email) {
@@ -232,12 +242,16 @@ router.post('/apple', [
     }
 
     // Nouvel utilisateur - inscription
+    console.log('📝 [Apple Sign-In] Nouvel utilisateur détecté');
     // Vérifier que firstName et lastName sont fournis pour un nouvel utilisateur
     const trimmedFirstName = firstName?.trim();
     const trimmedLastName = lastName?.trim();
     
+    console.log('📝 [Apple Sign-In] firstName:', trimmedFirstName, 'lastName:', trimmedLastName);
+    
     if (!trimmedFirstName || trimmedFirstName.length === 0 || 
         !trimmedLastName || trimmedLastName.length === 0) {
+      console.error('❌ [Apple Sign-In] Prénom ou nom manquant pour inscription');
       return res.status(400).json({
         message: 'Prénom et nom sont requis pour l\'inscription'
       });
