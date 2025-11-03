@@ -178,8 +178,7 @@ router.post('/login', [
 // @desc    Connexion/Inscription avec Apple Sign-In
 // @access  Public
 router.post('/apple', [
-  body('appleId').exists().withMessage('Apple ID requis'),
-  body('email').optional().isEmail()
+  body('appleId').exists().withMessage('Apple ID requis')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -193,15 +192,9 @@ router.post('/apple', [
     
     // Log pour déboguer - AFFICHER TOUT LE BODY
     console.log('📱 [Apple Sign-In] Body complet:', JSON.stringify(req.body, null, 2));
-    console.log('📱 [Apple Sign-In] Données reçues:', {
-      appleId: req.body.appleId,
-      firstName: req.body.firstName,
-      lastName: req.body.lastName,
-      email: req.body.email,
-    });
     
     const { appleId, firstName, lastName, email } = req.body;
-
+    
     // Vérifier que appleId existe
     if (!appleId) {
       console.error('❌ [Apple Sign-In] appleId manquant');
@@ -209,6 +202,23 @@ router.post('/apple', [
         message: 'Apple ID requis'
       });
     }
+    
+    // Valider email si fourni (peut être null/undefined)
+    if (email && email !== null && email !== '') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          message: 'Email invalide'
+        });
+      }
+    }
+    
+    console.log('📱 [Apple Sign-In] Données validées:', {
+      appleId,
+      firstName: firstName || 'N/A',
+      lastName: lastName || 'N/A',
+      email: email || 'N/A',
+    });
 
     // Chercher l'utilisateur existant
     let user = await User.findOne({ appleId });
