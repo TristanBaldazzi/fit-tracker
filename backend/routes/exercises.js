@@ -10,7 +10,38 @@ const router = express.Router();
 // @access  Private
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    // Vérifier d'abord s'il y a des exercices par défaut dans la base
+    const defaultExercisesCount = await Exercise.countDocuments({ isCustom: false });
+    
+    // Si aucun exercice par défaut, les initialiser automatiquement
+    if (defaultExercisesCount === 0) {
+      console.log('🔄 [Exercises] Aucun exercice par défaut trouvé. Initialisation automatique...');
+      
+      try {
+        const defaultExercises = require('../data/defaultExercises');
+        const mongoose = require('mongoose');
+        
+        // ID système pour les exercices par défaut
+        const systemUserId = new mongoose.Types.ObjectId('000000000000000000000000');
+        
+        // Ajouter l'ID système à chaque exercice
+        const exercisesWithSystemUser = defaultExercises.map(exercise => ({
+          ...exercise,
+          creator: systemUserId
+        }));
+        
+        // Insérer les exercices par défaut
+        const createdExercises = await Exercise.insertMany(exercisesWithSystemUser);
+        console.log(`✅ [Exercises] ${createdExercises.length} exercices par défaut initialisés automatiquement`);
+      } catch (initError) {
+        console.error('❌ [Exercises] Erreur lors de l\'initialisation automatique:', initError);
+      }
+    }
+    
+    // Maintenant récupérer tous les exercices
     const exercises = await Exercise.getUserExercises(req.user._id);
+    
+    console.log(`📊 [Exercises] Récupération exercices pour utilisateur ${req.user._id}: ${exercises.length} exercices trouvés`);
     
     res.json({
       message: 'Exercices récupérés avec succès',
