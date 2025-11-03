@@ -178,19 +178,27 @@ router.post('/login', [
 // @desc    Connexion/Inscription avec Apple Sign-In
 // @access  Public
 router.post('/apple', [
-  body('appleId').exists(),
-  body('firstName').trim().isLength({ min: 1 }),
-  body('lastName').trim().isLength({ min: 1 }),
+  body('appleId').exists().withMessage('Apple ID requis'),
   body('email').optional().isEmail()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
+    
     if (!errors.isEmpty()) {
       return res.status(400).json({
-        message: 'Données Apple Sign-In invalides'
+        message: 'Données Apple Sign-In invalides',
+        errors: errors.array()
       });
     }
-
+    
+    // Log pour déboguer
+    console.log('📱 [Apple Sign-In] Données reçues:', {
+      appleId: req.body.appleId,
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      email: req.body.email,
+    });
+    
     const { appleId, firstName, lastName, email } = req.body;
 
     // Chercher l'utilisateur existant
@@ -198,6 +206,12 @@ router.post('/apple', [
 
     if (user) {
       // Utilisateur existant - connexion
+      // Mettre à jour l'email si fourni et différent
+      if (email && email !== user.email) {
+        user.email = email;
+        await user.save();
+      }
+      
       const token = generateToken(user._id);
       
       return res.json({
@@ -218,8 +232,19 @@ router.post('/apple', [
     }
 
     // Nouvel utilisateur - inscription
+    // Vérifier que firstName et lastName sont fournis pour un nouvel utilisateur
+    const trimmedFirstName = firstName?.trim();
+    const trimmedLastName = lastName?.trim();
+    
+    if (!trimmedFirstName || trimmedFirstName.length === 0 || 
+        !trimmedLastName || trimmedLastName.length === 0) {
+      return res.status(400).json({
+        message: 'Prénom et nom sont requis pour l\'inscription'
+      });
+    }
+
     // Générer un nom d'utilisateur unique
-    const baseUsername = `${firstName.toLowerCase()}${lastName.toLowerCase()}`;
+    const baseUsername = `${trimmedFirstName.toLowerCase()}${trimmedLastName.toLowerCase()}`;
     let username = baseUsername;
     let counter = 1;
     
@@ -230,8 +255,8 @@ router.post('/apple', [
 
     user = new User({
       appleId,
-      firstName,
-      lastName,
+      firstName: trimmedFirstName,
+      lastName: trimmedLastName,
       username,
       email: email || null
     });
