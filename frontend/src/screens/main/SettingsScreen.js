@@ -5,6 +5,9 @@ import {
   ScrollView,
   Alert,
   Linking,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import {
   List,
@@ -14,17 +17,27 @@ import {
   Text,
   Divider,
   Avatar,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native-paper';
 import { useAuth } from '../../context/AuthContext';
 import { userService, authService } from '../../services/api';
 import { colors, spacing, typography } from '../../styles/theme';
 
 const SettingsScreen = ({ navigation }) => {
-  const { user, logout, updateUser } = useAuth();
+  const { user, logout, updateUser, refreshUser } = useAuth();
   const [notifications, setNotifications] = useState(user?.settings?.notifications ?? true);
   const [isPublic, setIsPublic] = useState(user?.settings?.isPublic ?? true);
   const [emailStatus, setEmailStatus] = useState(null);
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
+  
+  // État pour la modification du profil
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [firstName, setFirstName] = useState(user?.firstName || '');
+  const [lastName, setLastName] = useState(user?.lastName || '');
+  const [username, setUsername] = useState(user?.username || '');
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [usernameError, setUsernameError] = useState(null);
 
   const handleLogout = () => {
     Alert.alert(
@@ -126,6 +139,112 @@ const SettingsScreen = ({ navigation }) => {
 
   const openEmail = () => {
     Linking.openURL('mailto:tristan.baldazzi@makemydesign.fr');
+  };
+
+  // Calculer les jours restants avant de pouvoir changer le username
+  const getUsernameChangeInfo = () => {
+    if (!user?.lastUsernameChange) {
+      return { canChange: true, daysRemaining: 0 };
+    }
+    
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const lastChange = new Date(user.lastUsernameChange);
+    
+    if (lastChange > sevenDaysAgo) {
+      const daysRemaining = Math.ceil(
+        (lastChange.getTime() + 7 * 24 * 60 * 60 * 1000 - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      return { canChange: false, daysRemaining };
+    }
+    
+    return { canChange: true, daysRemaining: 0 };
+  };
+
+  const handleEditProfile = () => {
+    setFirstName(user?.firstName || '');
+    setLastName(user?.lastName || '');
+    setUsername(user?.username || '');
+    setUsernameError(null);
+    setIsEditingProfile(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingProfile(false);
+    setFirstName(user?.firstName || '');
+    setLastName(user?.lastName || '');
+    setUsername(user?.username || '');
+    setUsernameError(null);
+  };
+
+  const handleUpdateProfile = async () => {
+    // Validation
+    if (!firstName.trim()) {
+      Alert.alert('Erreur', 'Le prénom est requis');
+      return;
+    }
+    if (!lastName.trim()) {
+      Alert.alert('Erreur', 'Le nom est requis');
+      return;
+    }
+    if (!username.trim() || username.trim().length < 3) {
+      Alert.alert('Erreur', 'Le nom d\'utilisateur doit contenir au moins 3 caractères');
+      return;
+    }
+    if (!/^[a-zA-Z0-9]+$/.test(username.trim())) {
+      Alert.alert('Erreur', 'Le nom d\'utilisateur ne peut contenir que des lettres et des chiffres');
+      return;
+    }
+
+    // Vérifier si le username a changé et s'il peut être changé
+    const trimmedUsername = username.trim().toLowerCase();
+    const usernameChanged = trimmedUsername !== (user?.username?.toLowerCase() || '');
+    const { canChange, daysRemaining } = getUsernameChangeInfo();
+
+    if (usernameChanged && !canChange) {
+      Alert.alert(
+        'Limitation',
+        `Vous ne pouvez changer votre nom d'utilisateur que tous les 7 jours. Réessayez dans ${daysRemaining} jour(s).`
+      );
+      return;
+    }
+
+    setIsUpdatingProfile(true);
+    setUsernameError(null);
+
+    try {
+      const updateData = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      };
+
+      if (usernameChanged) {
+        updateData.username = trimmedUsername;
+      }
+
+      const result = await userService.updateProfile(updateData);
+      updateUser(result.user);
+      await refreshUser();
+      setIsEditingProfile(false);
+      Alert.alert('Succès', 'Profil mis à jour avec succès');
+    } catch (error) {
+      console.error('Erreur mise à jour profil:', error);
+      const errorMessage = error.response?.data?.message || 'Erreur lors de la mise à jour du profil';
+      
+      if (error.response?.status === 400 && errorMessage.includes('déjà utilisé')) {
+        setUsernameError('Ce nom d\'utilisateur est déjà utilisé');
+      } else if (error.response?.status === 429) {
+        const daysRemaining = error.response?.data?.daysRemaining;
+        Alert.alert(
+          'Limitation',
+          `Vous ne pouvez changer votre nom d'utilisateur que tous les 7 jours. Réessayez dans ${daysRemaining} jour(s).`
+        );
+      } else {
+        Alert.alert('Erreur', errorMessage);
+      }
+    } finally {
+      setIsUpdatingProfile(false);
+    }
   };
 
   return (
@@ -235,6 +354,16 @@ const SettingsScreen = ({ navigation }) => {
           <Divider />
           
           <List.Item
+            title="Modifier le profil"
+            description="Changer votre nom, prénom ou nom d'utilisateur"
+            left={(props) => <List.Icon {...props} icon="account-edit" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={handleEditProfile}
+          />
+          
+          <Divider />
+          
+          <List.Item
             title="Changer le mot de passe"
             description="Modifier votre mot de passe"
             left={(props) => <List.Icon {...props} icon="lock" />}
@@ -243,6 +372,99 @@ const SettingsScreen = ({ navigation }) => {
           />
         </Card.Content>
       </Card>
+
+      {/* Modal de modification du profil */}
+      <Modal
+        visible={isEditingProfile}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCancelEdit}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Card style={styles.modalCard}>
+              <Card.Content>
+                <Text style={styles.modalTitle}>Modifier le profil</Text>
+                
+                <TextInput
+                  label="Prénom"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  mode="outlined"
+                  style={styles.input}
+                  disabled={isUpdatingProfile}
+                />
+                
+                <TextInput
+                  label="Nom"
+                  value={lastName}
+                  onChangeText={setLastName}
+                  mode="outlined"
+                  style={styles.input}
+                  disabled={isUpdatingProfile}
+                />
+                
+                <TextInput
+                  label="Nom d'utilisateur"
+                  value={username}
+                  onChangeText={(text) => {
+                    setUsername(text);
+                    setUsernameError(null);
+                  }}
+                  mode="outlined"
+                  style={styles.input}
+                  disabled={isUpdatingProfile}
+                  error={!!usernameError}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                
+                {usernameError && (
+                  <Text style={styles.errorText}>{usernameError}</Text>
+                )}
+                
+                {(() => {
+                  const { canChange, daysRemaining } = getUsernameChangeInfo();
+                  const trimmedUsername = username.trim().toLowerCase();
+                  const usernameChanged = trimmedUsername !== (user?.username?.toLowerCase() || '');
+                  
+                  if (usernameChanged && !canChange) {
+                    return (
+                      <Text style={styles.warningText}>
+                        ⏰ Vous pourrez changer votre nom d'utilisateur dans {daysRemaining} jour(s)
+                      </Text>
+                    );
+                  }
+                  return null;
+                })()}
+                
+                <View style={styles.modalButtons}>
+                  <Button
+                    mode="outlined"
+                    onPress={handleCancelEdit}
+                    disabled={isUpdatingProfile}
+                    style={styles.modalButton}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    mode="contained"
+                    onPress={handleUpdateProfile}
+                    loading={isUpdatingProfile}
+                    disabled={isUpdatingProfile}
+                    style={styles.modalButton}
+                  >
+                    Enregistrer
+                  </Button>
+                </View>
+              </Card.Content>
+            </Card>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Informations sur l'application */}
       <Card style={styles.infoCard}>
@@ -479,6 +701,50 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: spacing.xl,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '90%',
+    maxWidth: 500,
+  },
+  modalCard: {
+    elevation: 8,
+  },
+  modalTitle: {
+    ...typography.h3,
+    color: colors.text,
+    fontWeight: 'bold',
+    marginBottom: spacing.lg,
+    textAlign: 'center',
+  },
+  input: {
+    marginBottom: spacing.md,
+  },
+  errorText: {
+    ...typography.caption,
+    color: colors.error,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.xs,
+  },
+  warningText: {
+    ...typography.caption,
+    color: colors.warning,
+    marginBottom: spacing.md,
+    marginLeft: spacing.xs,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+    gap: spacing.md,
+  },
+  modalButton: {
+    flex: 1,
   },
 });
 

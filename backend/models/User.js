@@ -74,6 +74,10 @@ const userSchema = new mongoose.Schema({
     trim: true,
     lowercase: true
   },
+  lastUsernameChange: {
+    type: Date,
+    default: null
+  },
   avatar: {
     type: String,
     default: null

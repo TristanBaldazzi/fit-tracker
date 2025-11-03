@@ -405,7 +405,8 @@ router.get('/me', authenticateToken, async (req, res) => {
         xp: user.xp,
         totalSessionsCompleted: user.totalSessionsCompleted,
         stats: user.stats,
-        settings: user.settings
+        settings: user.settings,
+        lastUsernameChange: user.lastUsernameChange
       }
     });
   } catch (error) {

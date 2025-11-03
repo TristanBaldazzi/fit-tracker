@@ -44,22 +44,77 @@ router.put('/profile', authenticateToken, [
     const { firstName, lastName, username, avatar } = req.body;
     const userId = req.user._id;
 
-    // Vérifier si le nom d'utilisateur est déjà pris
-    if (username && username !== req.user.username) {
-      const existingUser = await User.findOne({ username });
+    // Récupérer l'utilisateur actuel
+    const currentUser = await User.findById(userId);
+    if (!currentUser) {
+      return res.status(404).json({
+        message: 'Utilisateur non trouvé'
+      });
+    }
+
+    const updateData = {};
+
+    // Gérer firstName et lastName (peuvent être modifiés à tout moment)
+    if (firstName !== undefined) {
+      if (!firstName || firstName.trim().length === 0) {
+        return res.status(400).json({
+          message: 'Le prénom est requis'
+        });
+      }
+      updateData.firstName = firstName.trim();
+    }
+
+    if (lastName !== undefined) {
+      if (!lastName || lastName.trim().length === 0) {
+        return res.status(400).json({
+          message: 'Le nom est requis'
+        });
+      }
+      updateData.lastName = lastName.trim();
+    }
+
+    // Gérer username (limitation de 7 jours)
+    if (username && username.toLowerCase() !== currentUser.username.toLowerCase()) {
+      const trimmedUsername = username.trim().toLowerCase();
+
+      // Vérifier si le nom d'utilisateur est déjà pris
+      const existingUser = await User.findOne({ 
+        username: trimmedUsername,
+        _id: { $ne: userId }
+      });
       if (existingUser) {
         return res.status(400).json({
           message: 'Nom d\'utilisateur déjà utilisé'
         });
       }
+
+      // Vérifier la limitation de 7 jours
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      if (currentUser.lastUsernameChange && currentUser.lastUsernameChange > sevenDaysAgo) {
+        const timeLeft = Math.ceil(
+          (currentUser.lastUsernameChange.getTime() + 7 * 24 * 60 * 60 * 1000 - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        return res.status(429).json({
+          message: `Vous ne pouvez changer votre nom d'utilisateur que tous les 7 jours. Réessayez dans ${timeLeft} jour(s).`,
+          daysRemaining: timeLeft,
+          canChangeAfter: new Date(currentUser.lastUsernameChange.getTime() + 7 * 24 * 60 * 60 * 1000)
+        });
+      }
+
+      // Le changement est autorisé
+      updateData.username = trimmedUsername;
+      updateData.lastUsernameChange = now;
+      console.log(`✅ [Profile Update] Username changé: ${currentUser.username} → ${trimmedUsername}`);
     }
 
-    const updateData = {};
-    if (firstName) updateData.firstName = firstName;
-    if (lastName) updateData.lastName = lastName;
-    if (username) updateData.username = username;
-    if (avatar) updateData.avatar = avatar;
+    // Gérer avatar
+    if (avatar !== undefined) {
+      updateData.avatar = avatar;
+    }
 
+    // Mettre à jour l'utilisateur
     const user = await User.findByIdAndUpdate(
       userId,
       updateData,
@@ -71,6 +126,7 @@ router.put('/profile', authenticateToken, [
       user: {
         _id: user._id,
         email: user.email,
+        emailVerified: user.emailVerified,
         firstName: user.firstName,
         lastName: user.lastName,
         username: user.username,
@@ -79,7 +135,8 @@ router.put('/profile', authenticateToken, [
         xp: user.xp,
         totalSessionsCompleted: user.totalSessionsCompleted,
         stats: user.stats,
-        settings: user.settings
+        settings: user.settings,
+        lastUsernameChange: user.lastUsernameChange
       }
     });
   } catch (error) {
