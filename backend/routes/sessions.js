@@ -15,7 +15,10 @@ router.get('/', authenticateToken, async (req, res) => {
     const { isTemplate, category, difficulty } = req.query;
     const userId = req.user._id;
 
-    const query = { creator: userId };
+    const query = { 
+      creator: userId,
+      isDeleted: false // Exclure les séances supprimées de la liste
+    };
     if (isTemplate !== undefined) query.isTemplate = isTemplate === 'true';
     if (category) query.category = category;
     if (difficulty) query.difficulty = difficulty;
@@ -58,6 +61,7 @@ router.get('/public', authenticateToken, async (req, res) => {
 
     const query = { 
       isPublic: true,
+      isDeleted: false, // Exclure les séances supprimées
       creator: { $ne: userId } // Exclure les sessions de l'utilisateur
     };
 
@@ -308,6 +312,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     const session = await Session.findOne({
       _id: id,
+      isDeleted: false, // Exclure les séances supprimées
       $or: [
         { creator: userId },
         { isPublic: true }
@@ -316,7 +321,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     if (!session) {
       return res.status(404).json({
-        message: 'Session non trouvée'
+        message: 'Session non trouvée ou supprimée'
       });
     }
 
@@ -501,12 +506,13 @@ router.put('/:id', authenticateToken, [
 
     const session = await Session.findOne({
       _id: id,
-      creator: userId
+      creator: userId,
+      isDeleted: false // Empêcher de modifier une séance supprimée
     });
 
     if (!session) {
       return res.status(404).json({
-        message: 'Session non trouvée ou accès non autorisé'
+        message: 'Session non trouvée, supprimée ou accès non autorisé'
       });
     }
 
@@ -570,7 +576,7 @@ router.put('/:id', authenticateToken, [
 });
 
 // @route   DELETE /api/sessions/:id
-// @desc    Supprimer une session
+// @desc    Supprimer une session (soft delete - conserve l'historique)
 // @access  Private
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
@@ -588,10 +594,18 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       });
     }
 
-    await Session.findByIdAndDelete(id);
+    // Soft delete : marquer comme supprimée au lieu de supprimer réellement
+    // Cela permet de conserver l'historique (completions) pour les stats et le calendrier
+    session.isDeleted = true;
+    session.deletedAt = new Date();
+    await session.save();
+
+    console.log(`✅ [Session Delete] Session "${session.name}" marquée comme supprimée (soft delete)`);
+    console.log(`📊 [Session Delete] Historique conservé: ${session.completions.length} complétions préservées`);
 
     res.json({
-      message: 'Session supprimée avec succès'
+      message: 'Session supprimée avec succès',
+      note: 'L\'historique de cette session est conservé pour les statistiques et le calendrier'
     });
   } catch (error) {
     console.error('Erreur suppression session:', error);
@@ -611,6 +625,7 @@ router.post('/:id/copy', authenticateToken, async (req, res) => {
 
     const originalSession = await Session.findOne({
       _id: id,
+      isDeleted: false, // Empêcher de copier une séance supprimée
       $or: [
         { creator: userId },
         { isPublic: true }
@@ -619,7 +634,7 @@ router.post('/:id/copy', authenticateToken, async (req, res) => {
 
     if (!originalSession) {
       return res.status(404).json({
-        message: 'Session non trouvée'
+        message: 'Session non trouvée ou supprimée'
       });
     }
 
@@ -705,13 +720,16 @@ router.post('/:id/complete', authenticateToken, async (req, res) => {
       exercisesCount: exercises ? exercises.length : 0
     });
 
-    // Vérifier que la séance existe
-    const session = await Session.findById(id);
+    // Vérifier que la séance existe et n'est pas supprimée
+    const session = await Session.findOne({
+      _id: id,
+      isDeleted: false // Empêcher de compléter une séance supprimée
+    });
 
     if (!session) {
-      console.log('❌ Session non trouvée');
+      console.log('❌ Session non trouvée ou supprimée');
       return res.status(404).json({
-        message: 'Session non trouvée'
+        message: 'Session non trouvée ou supprimée'
       });
     }
 

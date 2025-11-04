@@ -149,7 +149,17 @@ const sessionSchema = new mongoose.Schema({
   tags: [{
     type: String,
     trim: true
-  }]
+  }],
+  
+  // Soft delete - permet de conserver l'historique
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: {
+    type: Date,
+    default: null
+  }
 }, {
   timestamps: true
 });
@@ -159,6 +169,7 @@ sessionSchema.index({ creator: 1 });
 sessionSchema.index({ isPublic: 1, isTemplate: 1 });
 sessionSchema.index({ category: 1, difficulty: 1 });
 sessionSchema.index({ name: 'text', description: 'text' });
+sessionSchema.index({ isDeleted: 1 }); // Index pour filtrer les séances supprimées
 
 // Méthode pour calculer la durée estimée
 sessionSchema.methods.calculateEstimatedDuration = function() {

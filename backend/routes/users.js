@@ -368,10 +368,11 @@ router.get('/:userId/sessions', authenticateToken, checkPublicProfile, async (re
     const { userId } = req.params;
     const { limit = 10, offset = 0 } = req.query;
 
-    // Récupérer les séances publiques de l'utilisateur
+    // Récupérer les séances publiques de l'utilisateur (exclure les supprimées)
     const sessions = await Session.find({
       creator: userId,
-      isPublic: true
+      isPublic: true,
+      isDeleted: false // Exclure les séances supprimées
     })
     .select('name description estimatedDuration difficulty category exercises tags createdAt')
     .sort({ createdAt: -1 })
@@ -404,7 +405,8 @@ router.post('/:userId/sessions/:sessionId/copy', authenticateToken, checkPublicP
     const originalSession = await Session.findOne({
       _id: sessionId,
       creator: ownerId,
-      isPublic: true
+      isPublic: true,
+      isDeleted: false // Empêcher de copier une séance supprimée
     });
 
     if (!originalSession) {
