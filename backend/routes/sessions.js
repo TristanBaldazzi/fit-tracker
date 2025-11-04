@@ -851,16 +851,72 @@ router.post('/:id/complete', authenticateToken, async (req, res) => {
     
     console.log('💰 XP calculé:', calculatedXP);
 
+    // Calculer le poids total soulevé
+    console.log('🏋️ === CALCUL DU POIDS TOTAL ===');
+    const totalWeight = exercises.reduce((total, exercise) => {
+      const exerciseWeight = exercise.sets ? exercise.sets.reduce((setTotal, set) => {
+        if (set.completed && set.weight && set.reps) {
+          return setTotal + (set.weight * set.reps);
+        }
+        return setTotal;
+      }, 0) : 0;
+      return total + exerciseWeight;
+    }, 0);
+    
+    console.log('💪 Poids total soulevé:', totalWeight, 'kg');
+
     // Mettre à jour les statistiques de l'utilisateur
     console.log('👤 Mise à jour des statistiques utilisateur...');
     const User = require('../models/User');
-    await User.findByIdAndUpdate(userId, {
-      $inc: {
-        totalSessionsCompleted: 1,
-        totalXP: calculatedXP
-      }
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      console.error('❌ Utilisateur non trouvé');
+      return res.status(404).json({
+        message: 'Utilisateur non trouvé'
+      });
+    }
+
+    // Sauvegarder l'ancien niveau pour détecter le passage de niveau
+    const oldLevel = user.level;
+
+    // Ajouter l'XP
+    user.xp += calculatedXP;
+    
+    // Calculer le nouveau niveau
+    const newLevel = user.calculateLevel();
+    if (user.level !== newLevel) {
+      user.level = newLevel;
+    }
+
+    // Incrémenter les sessions complétées
+    user.totalSessionsCompleted += 1;
+
+    // Mettre à jour les stats (durée et poids)
+    if (actualDuration && actualDuration > 0) {
+      user.stats.totalWorkoutTime = (user.stats.totalWorkoutTime || 0) + actualDuration;
+      console.log('⏱️ Durée ajoutée:', actualDuration, 'minutes. Total:', user.stats.totalWorkoutTime, 'minutes');
+    }
+
+    if (totalWeight > 0) {
+      user.stats.totalWeightLifted = (user.stats.totalWeightLifted || 0) + totalWeight;
+      console.log('💪 Poids ajouté:', totalWeight, 'kg. Total:', user.stats.totalWeightLifted, 'kg');
+    }
+
+    // Sauvegarder l'utilisateur
+    await user.save();
+    
+    console.log('✅ Statistiques utilisateur mises à jour:', {
+      xp: user.xp,
+      level: user.level,
+      totalSessionsCompleted: user.totalSessionsCompleted,
+      totalWorkoutTime: user.stats.totalWorkoutTime,
+      totalWeightLifted: user.stats.totalWeightLifted
     });
-    console.log('✅ Statistiques utilisateur mises à jour');
+
+    // Vérifier si l'utilisateur a monté de niveau
+    const levelUp = newLevel > oldLevel;
+    const levelsGained = newLevel - oldLevel;
 
     // Récupérer la séance mise à jour
     const updatedSession = await Session.findById(id)
@@ -870,14 +926,34 @@ router.post('/:id/complete', authenticateToken, async (req, res) => {
     console.log('📊 Résumé final:', {
       sessionName: updatedSession.name,
       completionsCount: updatedSession.completions.length,
-      xpGained: calculatedXP
+      xpGained: calculatedXP,
+      totalWeight: totalWeight,
+      actualDuration: actualDuration,
+      levelUp: levelUp,
+      oldLevel: oldLevel,
+      newLevel: newLevel
     });
 
     res.json({
       success: true,
       message: 'Séance terminée avec succès',
       session: updatedSession,
-      xpGained: calculatedXP
+      xpGained: calculatedXP,
+      totalWeight: totalWeight,
+      actualDuration: actualDuration,
+      levelUp: levelUp,
+      levelsGained: levelsGained,
+      oldLevel: oldLevel,
+      newLevel: newLevel,
+      user: {
+        xp: user.xp,
+        level: user.level,
+        totalSessionsCompleted: user.totalSessionsCompleted,
+        stats: {
+          totalWorkoutTime: user.stats.totalWorkoutTime,
+          totalWeightLifted: user.stats.totalWeightLifted
+        }
+      }
     });
   } catch (error) {
     console.error('❌ ERREUR completion session:', error);
