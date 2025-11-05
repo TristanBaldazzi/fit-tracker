@@ -132,6 +132,12 @@ const userSchema = new mongoose.Schema({
       enum: ['metric', 'imperial'],
       default: 'metric'
     }
+  },
+  
+  // Notifications push
+  pushToken: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true

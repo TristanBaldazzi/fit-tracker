@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
 import { authService } from '../services/api';
+import notificationService from '../services/notificationService';
 
 // S'assurer que React est disponible depuis global si nécessaire
 if (typeof global !== 'undefined' && !global.React) {
@@ -75,6 +76,14 @@ export const AuthProvider = ({ children }) => {
         const userData = await authService.getMe();
         setUser(userData.user);
         setIsAuthenticated(true);
+        
+        // Enregistrer le token de notification push si l'utilisateur est connecté
+        try {
+          await notificationService.registerPushToken();
+        } catch (error) {
+          console.error('Erreur lors de l\'enregistrement du token de notification:', error);
+          // Ne pas faire échouer le chargement si l'enregistrement du token échoue
+        }
       }
     } catch (error) {
       console.error('Erreur lors de la vérification de l\'authentification:', error);
@@ -95,6 +104,14 @@ export const AuthProvider = ({ children }) => {
       setToken(response.token);
       setUser(response.user);
       setIsAuthenticated(true);
+      
+      // Enregistrer le token de notification push
+      try {
+        await notificationService.registerPushToken();
+      } catch (error) {
+        console.error('Erreur lors de l\'enregistrement du token de notification:', error);
+        // Ne pas faire échouer la connexion si l'enregistrement du token échoue
+      }
       
       return { success: true, user: response.user };
     } catch (error) {
@@ -118,6 +135,14 @@ export const AuthProvider = ({ children }) => {
       setToken(response.token);
       setUser(response.user);
       setIsAuthenticated(true);
+      
+      // Enregistrer le token de notification push
+      try {
+        await notificationService.registerPushToken();
+      } catch (error) {
+        console.error('Erreur lors de l\'enregistrement du token de notification:', error);
+        // Ne pas faire échouer l'inscription si l'enregistrement du token échoue
+      }
       
       return { success: true, user: response.user };
     } catch (error) {
@@ -194,6 +219,14 @@ export const AuthProvider = ({ children }) => {
       setToken(response.token);
       setUser(response.user);
       setIsAuthenticated(true);
+      
+      // Enregistrer le token de notification push
+      try {
+        await notificationService.registerPushToken();
+      } catch (error) {
+        console.error('Erreur lors de l\'enregistrement du token de notification:', error);
+        // Ne pas faire échouer la connexion si l'enregistrement du token échoue
+      }
       
       return { success: true, user: response.user };
     } catch (error) {

@@ -228,6 +228,12 @@ export const userService = {
     const response = await api.post(`/users/${userId}/sessions/${sessionId}/copy`);
     return response.data;
   },
+
+  // Enregistrer le token de notification push
+  registerPushToken: async (pushToken) => {
+    const response = await api.post('/users/push-token', { pushToken });
+    return response.data;
+  },
 };
 
 

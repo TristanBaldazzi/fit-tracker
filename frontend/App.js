@@ -41,6 +41,8 @@ import { theme } from './src/styles/theme';
 
 // Import du contexte d'authentification
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+// Import du service de notifications
+import notificationService from './src/services/notificationService';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -193,6 +195,16 @@ function AuthNavigator() {
 // Navigation principale de l'application
 function AppNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
+
+  // Configurer les gestionnaires de notifications
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      // Utiliser setTimeout pour s'assurer que la navigation est prête
+      setTimeout(() => {
+        notificationService.setupNotificationHandlers(navigationRef.current);
+      }, 1000);
+    }
+  }, [isAuthenticated]);
 
   if (isLoading) {
     return null; // Ou un écran de chargement
@@ -424,6 +436,9 @@ function SafePaperProvider({ children, theme }) {
   return <PaperProvider theme={theme}>{children}</PaperProvider>;
 }
 
+// Navigation ref pour les notifications
+const navigationRef = React.createRef();
+
 // Composant principal de l'application
 export default function App() {
   // S'assurer que React est disponible globalement AVANT tout rendu
@@ -454,7 +469,7 @@ export default function App() {
       <SafeAreaProvider>
         <SafePaperProvider theme={theme}>
           <AuthProvider>
-            <NavigationContainer>
+            <NavigationContainer ref={navigationRef}>
               <AppNavigator />
             </NavigationContainer>
             <StatusBar style="light" />

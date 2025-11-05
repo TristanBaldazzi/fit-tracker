@@ -200,6 +200,48 @@ router.put('/settings', authenticateToken, [
   }
 });
 
+// @route   POST /api/users/push-token
+// @desc    Enregistrer le token de notification push
+// @access  Private
+router.post('/push-token', authenticateToken, [
+  body('pushToken').notEmpty().withMessage('Token de notification requis')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        message: 'Données invalides',
+        errors: errors.array()
+      });
+    }
+
+    const { pushToken } = req.body;
+    const userId = req.user._id;
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { pushToken },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'Utilisateur non trouvé'
+      });
+    }
+
+    res.json({
+      message: 'Token de notification enregistré avec succès',
+      pushToken: user.pushToken
+    });
+  } catch (error) {
+    console.error('Erreur enregistrement token notification:', error);
+    res.status(500).json({
+      message: 'Erreur lors de l\'enregistrement du token de notification'
+    });
+  }
+});
+
 // @route   GET /api/users/search
 // @desc    Rechercher des utilisateurs
 // @access  Private

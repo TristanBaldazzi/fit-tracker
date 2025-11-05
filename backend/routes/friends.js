@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const Friend = require('../models/Friend');
 const User = require('../models/User');
 const { authenticateToken } = require('../middleware/auth');
+const pushNotificationService = require('../services/pushNotificationService');
 
 const router = express.Router();
 
@@ -89,6 +90,30 @@ router.post('/request', authenticateToken, [
 
     const friendRequest = await Friend.sendFriendRequest(requesterId, recipientId);
     
+    // Récupérer les informations de l'utilisateur qui envoie la demande
+    const requester = await User.findById(requesterId)
+      .select('username firstName lastName avatar');
+    
+    // Envoyer une notification push si le destinataire a un token et les notifications activées
+    if (recipient.pushToken && recipient.settings.notifications) {
+      try {
+        await pushNotificationService.sendFriendRequestNotification(
+          recipient.pushToken,
+          {
+            _id: requester._id,
+            username: requester.username,
+            firstName: requester.firstName,
+            lastName: requester.lastName,
+            avatar: requester.avatar
+          }
+        );
+        console.log('Notification push envoyée pour la demande d\'amitié');
+      } catch (error) {
+        console.error('Erreur lors de l\'envoi de la notification push:', error);
+        // Ne pas faire échouer la requête si la notification échoue
+      }
+    }
+    
     res.status(201).json({
       message: 'Demande d\'amitié envoyée avec succès',
       request: {
@@ -137,6 +162,33 @@ router.put('/accept/:requestId', authenticateToken, async (req, res) => {
     // Récupérer les informations du nouvel ami
     const friend = await User.findById(friendship.requester)
       .select('username firstName lastName avatar level xp');
+    
+    // Récupérer les informations de l'utilisateur qui accepte
+    const acceptor = await User.findById(userId)
+      .select('username firstName lastName avatar pushToken settings');
+    
+    // Envoyer une notification push si le demandeur a un token et les notifications activées
+    const requester = await User.findById(friendship.requester)
+      .select('pushToken settings');
+    
+    if (requester && requester.pushToken && requester.settings.notifications) {
+      try {
+        await pushNotificationService.sendFriendRequestAcceptedNotification(
+          requester.pushToken,
+          {
+            _id: acceptor._id,
+            username: acceptor.username,
+            firstName: acceptor.firstName,
+            lastName: acceptor.lastName,
+            avatar: acceptor.avatar
+          }
+        );
+        console.log('Notification push envoyée pour l\'acceptation de la demande d\'amitié');
+      } catch (error) {
+        console.error('Erreur lors de l\'envoi de la notification push:', error);
+        // Ne pas faire échouer la requête si la notification échoue
+      }
+    }
     
     res.json({
       message: 'Demande d\'amitié acceptée avec succès',
