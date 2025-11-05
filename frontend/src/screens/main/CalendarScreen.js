@@ -13,8 +13,8 @@ import {
   Button,
   Chip,
   ActivityIndicator,
-  FAB,
-  IconButton,
+  Surface,
+  Divider,
 } from 'react-native-paper';
 import { Calendar } from 'react-native-calendars';
 import { sessionService } from '../../services/api';
@@ -193,75 +193,80 @@ const CalendarScreen = ({ navigation }) => {
   const renderSession = (session) => (
     <Card key={session._id || session.completionId} style={styles.sessionCard}>
       <Card.Content>
-        <TouchableOpacity onPress={() => handleSessionPress(session)}>
+        <TouchableOpacity onPress={() => handleSessionPress(session)} activeOpacity={0.7}>
           <View style={styles.sessionHeader}>
-            <Text style={styles.sessionName}>{session.name}</Text>
+            <View style={styles.sessionHeaderLeft}>
+              <View style={[styles.categoryIndicator, { backgroundColor: getSessionColor(session.category) }]} />
+              <View style={styles.sessionTitleContainer}>
+                <Text style={styles.sessionName}>{session.name}</Text>
+                <Text style={styles.sessionTime}>{formatTime(session.completedAt)}</Text>
+              </View>
+            </View>
             <View style={styles.sessionBadges}>
               <Chip
-                mode="outlined"
-                style={[styles.difficultyChip, { borderColor: getDifficultyColor(session.difficulty) }]}
-                textStyle={{ color: getDifficultyColor(session.difficulty) }}
+                mode="flat"
+                style={[styles.difficultyChip, { backgroundColor: getDifficultyColor(session.difficulty) + '20' }]}
+                textStyle={{ color: getDifficultyColor(session.difficulty), fontSize: 11, fontWeight: '600' }}
                 compact
               >
                 {getDifficultyLabel(session.difficulty)}
-              </Chip>
-              <Chip
-                mode="outlined"
-                style={[styles.categoryChip, { borderColor: getSessionColor(session.category) }]}
-                textStyle={{ color: getSessionColor(session.category) }}
-                compact
-              >
-                {getCategoryLabel(session.category)}
               </Chip>
             </View>
           </View>
           
           <View style={styles.sessionInfo}>
-            <View style={styles.sessionDetail}>
-              <Text style={styles.sessionDetailIcon}>⏱️</Text>
-              <Text style={styles.sessionDetailText}>
-                {session.actualDuration ? `${session.actualDuration}min` : 'Durée non enregistrée'}
+            <Surface style={[styles.sessionInfoItem, { backgroundColor: colors.primary + '15' }]}>
+              <Text style={styles.sessionInfoIcon}>⏱️</Text>
+              <Text style={styles.sessionInfoText}>
+                {session.actualDuration ? `${session.actualDuration}min` : 'N/A'}
               </Text>
-            </View>
-            <View style={styles.sessionDetail}>
-              <Text style={styles.sessionDetailIcon}>🏋️</Text>
-              <Text style={styles.sessionDetailText}>
+            </Surface>
+            <Surface style={[styles.sessionInfoItem, { backgroundColor: colors.success + '15' }]}>
+              <Text style={styles.sessionInfoIcon}>🏋️</Text>
+              <Text style={styles.sessionInfoText}>
                 {session.exercises?.length || 0} exercices
               </Text>
-            </View>
-            <View style={styles.sessionDetail}>
-              <Text style={styles.sessionDetailIcon}>🕐</Text>
-              <Text style={styles.sessionDetailText}>
-                {formatTime(session.completedAt)}
+            </Surface>
+            <Surface style={[styles.sessionInfoItem, { backgroundColor: getSessionColor(session.category) + '15' }]}>
+              <Text style={styles.sessionInfoIcon}>📊</Text>
+              <Text style={styles.sessionInfoText}>
+                {getCategoryLabel(session.category)}
               </Text>
-            </View>
+            </Surface>
           </View>
 
           {session.notes && (
-            <Text style={styles.sessionNotes} numberOfLines={2}>
-              💬 {session.notes}
-            </Text>
+            <Surface style={styles.sessionNotesContainer}>
+              <Text style={styles.sessionNotes} numberOfLines={2}>
+                💬 {session.notes}
+              </Text>
+            </Surface>
           )}
         </TouchableOpacity>
+        
+        <Divider style={styles.divider} />
         
         {/* Boutons d'action */}
         <View style={styles.sessionActions}>
           <Button
-            mode="outlined"
+            mode="contained-tonal"
             onPress={() => handleEditSession(session)}
             icon="pencil"
             compact
             style={styles.editButton}
+            buttonColor={colors.primary + '20'}
+            textColor={colors.primary}
           >
             Modifier
           </Button>
           <Button
-            mode="outlined"
+            mode="contained-tonal"
             onPress={() => handleDeleteSession(session)}
             icon="delete"
-            textColor={colors.error}
             compact
             style={styles.deleteButton}
+            buttonColor={colors.error + '20'}
+            textColor={colors.error}
           >
             Supprimer
           </Button>
@@ -272,6 +277,7 @@ const CalendarScreen = ({ navigation }) => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
+      <Text style={styles.emptyEmoji}>📅</Text>
       <Text style={styles.emptyTitle}>Aucune séance ce jour</Text>
       <Text style={styles.emptyDescription}>
         Vous n'avez pas complété de séance le {formatDate(selectedDate)}
@@ -281,6 +287,7 @@ const CalendarScreen = ({ navigation }) => {
         onPress={() => navigation.navigate('Sessions')}
         style={styles.emptyButton}
         icon="dumbbell"
+        buttonColor={colors.primary}
       >
         Voir mes séances
       </Button>
@@ -307,9 +314,11 @@ const CalendarScreen = ({ navigation }) => {
         }
       >
         {/* Calendrier */}
-        <Card style={styles.calendarCard}>
+        <Card style={styles.calendarCard} mode="elevated">
           <Card.Content>
-            <Text style={styles.sectionTitle}>Calendrier des séances</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>📅 Calendrier</Text>
+            </View>
             <Calendar
               onDayPress={onDayPress}
               markedDates={markedDates}
@@ -327,12 +336,19 @@ const CalendarScreen = ({ navigation }) => {
                 arrowColor: colors.primary,
                 monthTextColor: colors.text,
                 indicatorColor: colors.primary,
-                textDayFontWeight: '500',
+                textDayFontWeight: '600',
                 textMonthFontWeight: 'bold',
-                textDayHeaderFontWeight: '600',
+                textDayHeaderFontWeight: '700',
                 textDayFontSize: 16,
-                textMonthFontSize: 18,
-                textDayHeaderFontSize: 14,
+                textMonthFontSize: 20,
+                textDayHeaderFontSize: 13,
+                'stylesheet.calendar.header': {
+                  week: {
+                    marginTop: 5,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                  },
+                },
               }}
               style={styles.calendar}
             />
@@ -340,11 +356,13 @@ const CalendarScreen = ({ navigation }) => {
         </Card>
 
         {/* Séances du jour sélectionné */}
-        <Card style={styles.sessionsCard}>
+        <Card style={styles.sessionsCard} mode="elevated">
           <Card.Content>
-            <Text style={styles.sectionTitle}>
-              Séances du {formatDate(selectedDate)}
-            </Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                🏋️ Séances du {formatDate(selectedDate)}
+              </Text>
+            </View>
             
             {sessionsForSelectedDate.length > 0 ? (
               sessionsForSelectedDate.map(renderSession)
@@ -355,11 +373,14 @@ const CalendarScreen = ({ navigation }) => {
         </Card>
 
         {/* Statistiques du mois */}
-        <Card style={styles.statsCard}>
+        <Card style={styles.statsCard} mode="elevated">
           <Card.Content>
-            <Text style={styles.sectionTitle}>Statistiques du mois</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>📊 Statistiques du mois</Text>
+            </View>
             <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
+              <Surface style={[styles.statCard, { backgroundColor: colors.primary + '15' }]}>
+                <Text style={styles.statEmoji}>💪</Text>
                 <Text style={styles.statNumber}>
                   {sessions.filter(session => {
                     const sessionDate = new Date(session.completedAt);
@@ -368,9 +389,10 @@ const CalendarScreen = ({ navigation }) => {
                            sessionDate.getFullYear() === now.getFullYear();
                   }).length}
                 </Text>
-                <Text style={styles.statLabel}>Séances ce mois</Text>
-              </View>
-              <View style={styles.statItem}>
+                <Text style={styles.statLabel}>Séances</Text>
+              </Surface>
+              <Surface style={[styles.statCard, { backgroundColor: colors.success + '15' }]}>
+                <Text style={styles.statEmoji}>⏱️</Text>
                 <Text style={styles.statNumber}>
                   {sessions.filter(session => {
                     const sessionDate = new Date(session.completedAt);
@@ -380,7 +402,7 @@ const CalendarScreen = ({ navigation }) => {
                   }).reduce((total, session) => total + (session.actualDuration || 0), 0)}min
                 </Text>
                 <Text style={styles.statLabel}>Temps total</Text>
-              </View>
+              </Surface>
             </View>
           </Card.Content>
         </Card>
@@ -388,13 +410,6 @@ const CalendarScreen = ({ navigation }) => {
         {/* Espacement en bas */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
-
-      {/* Bouton d'action flottant */}
-      <FAB
-        style={styles.fab}
-        icon="dumbbell"
-        onPress={() => navigation.navigate('Sessions')}
-      />
     </View>
   );
 };
@@ -420,43 +435,69 @@ const styles = StyleSheet.create({
   },
   calendarCard: {
     margin: spacing.md,
-    elevation: 4,
+    marginBottom: spacing.sm,
+    borderRadius: 16,
   },
   calendar: {
-    borderRadius: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  sectionHeader: {
+    marginBottom: spacing.md,
   },
   sectionTitle: {
     ...typography.h4,
     color: colors.text,
-    fontWeight: '600',
-    marginBottom: spacing.md,
+    fontWeight: '700',
+    fontSize: 20,
   },
   sessionsCard: {
     margin: spacing.md,
     marginTop: 0,
-    elevation: 4,
+    marginBottom: spacing.sm,
+    borderRadius: 16,
   },
   statsCard: {
     margin: spacing.md,
     marginTop: 0,
-    elevation: 4,
+    borderRadius: 16,
   },
   sessionCard: {
     marginBottom: spacing.md,
-    elevation: 2,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   sessionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  sessionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  categoryIndicator: {
+    width: 4,
+    height: 40,
+    borderRadius: 2,
+    marginRight: spacing.md,
+  },
+  sessionTitleContainer: {
+    flex: 1,
   },
   sessionName: {
     ...typography.h4,
     color: colors.text,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: spacing.sm,
+    fontWeight: '700',
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  sessionTime: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
   },
   sessionBadges: {
     flexDirection: 'row',
@@ -465,60 +506,88 @@ const styles = StyleSheet.create({
   difficultyChip: {
     marginLeft: spacing.xs,
   },
-  categoryChip: {
-    marginLeft: spacing.xs,
-  },
   sessionInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    gap: spacing.xs,
+    marginBottom: spacing.md,
   },
-  sessionDetail: {
+  sessionInfoItem: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    borderRadius: 8,
   },
-  sessionDetailIcon: {
+  sessionInfoIcon: {
     fontSize: 16,
-    marginRight: spacing.xs,
+    marginRight: 4,
   },
-  sessionDetailText: {
+  sessionInfoText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: colors.text,
+    fontWeight: '600',
+    fontSize: 11,
+  },
+  sessionNotesContainer: {
+    backgroundColor: colors.surface,
+    padding: spacing.sm,
+    borderRadius: 8,
+    marginBottom: spacing.md,
   },
   sessionNotes: {
     ...typography.caption,
     color: colors.textSecondary,
     fontStyle: 'italic',
-    backgroundColor: colors.surface,
-    padding: spacing.sm,
-    borderRadius: 4,
+    fontSize: 12,
+  },
+  divider: {
+    marginVertical: spacing.md,
   },
   statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    gap: spacing.md,
   },
-  statItem: {
+  statCard: {
+    flex: 1,
     alignItems: 'center',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    borderRadius: 16,
+  },
+  statEmoji: {
+    fontSize: 32,
+    marginBottom: spacing.xs,
   },
   statNumber: {
     ...typography.h2,
-    color: colors.primary,
-    fontWeight: 'bold',
+    color: colors.text,
+    fontWeight: '800',
+    fontSize: 28,
     marginBottom: spacing.xs,
   },
   statLabel: {
     ...typography.caption,
     color: colors.textSecondary,
     textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 12,
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: spacing.xxl,
   },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: spacing.md,
+  },
   emptyTitle: {
     ...typography.h3,
     color: colors.text,
+    fontWeight: '700',
     marginBottom: spacing.sm,
   },
   emptyDescription: {
@@ -527,16 +596,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.lg,
     paddingHorizontal: spacing.lg,
+    lineHeight: 20,
   },
   emptyButton: {
     marginTop: spacing.sm,
-  },
-  fab: {
-    position: 'absolute',
-    margin: spacing.md,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.primary,
   },
   bottomSpacing: {
     height: spacing.xl,
@@ -544,7 +607,6 @@ const styles = StyleSheet.create({
   sessionActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: spacing.md,
     gap: spacing.sm,
   },
   editButton: {
