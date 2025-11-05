@@ -95,9 +95,21 @@ router.post('/request', authenticateToken, [
       .select('username firstName lastName avatar');
     
     // Envoyer une notification push si le destinataire a un token et les notifications activées
-    if (recipient.pushToken && recipient.settings.notifications) {
+    console.log('🔔 [Friend Request] Vérification des conditions pour notification push...');
+    console.log('🔔 [Friend Request] Recipient pushToken:', recipient.pushToken ? `${recipient.pushToken.substring(0, 30)}...` : 'null');
+    console.log('🔔 [Friend Request] Recipient notifications enabled:', recipient.settings?.notifications);
+    
+    if (recipient.pushToken && recipient.settings?.notifications) {
       try {
-        await pushNotificationService.sendFriendRequestNotification(
+        console.log('🔔 [Friend Request] Envoi de la notification push...');
+        console.log('🔔 [Friend Request] Token destinataire:', recipient.pushToken);
+        console.log('🔔 [Friend Request] Informations demandeur:', {
+          firstName: requester.firstName,
+          lastName: requester.lastName,
+          username: requester.username
+        });
+        
+        const notificationResult = await pushNotificationService.sendFriendRequestNotification(
           recipient.pushToken,
           {
             _id: requester._id,
@@ -107,11 +119,23 @@ router.post('/request', authenticateToken, [
             avatar: requester.avatar
           }
         );
-        console.log('Notification push envoyée pour la demande d\'amitié');
+        
+        console.log('🔔 [Friend Request] Résultat envoi notification:', notificationResult);
+        
+        if (notificationResult.success) {
+          console.log('✅ [Friend Request] Notification push envoyée avec succès pour la demande d\'amitié');
+        } else {
+          console.error('❌ [Friend Request] Échec envoi notification:', notificationResult.error);
+        }
       } catch (error) {
-        console.error('Erreur lors de l\'envoi de la notification push:', error);
+        console.error('❌ [Friend Request] Erreur lors de l\'envoi de la notification push:', error);
+        console.error('❌ [Friend Request] Stack:', error.stack);
         // Ne pas faire échouer la requête si la notification échoue
       }
+    } else {
+      console.warn('⚠️ [Friend Request] Notification push non envoyée - conditions non remplies:');
+      console.warn('   - pushToken:', recipient.pushToken ? 'présent' : 'absent');
+      console.warn('   - notifications:', recipient.settings?.notifications ? 'activées' : 'désactivées');
     }
     
     res.status(201).json({

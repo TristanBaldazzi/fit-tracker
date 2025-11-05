@@ -79,13 +79,20 @@ class PushNotificationService {
    * @param {object} requesterInfo - Informations de l'utilisateur qui envoie la demande
    */
   async sendFriendRequestNotification(recipientPushToken, requesterInfo) {
+    console.log('📱 [PushNotification] sendFriendRequestNotification appelé');
+    console.log('📱 [PushNotification] Token:', recipientPushToken ? `${recipientPushToken.substring(0, 30)}...` : 'null');
+    console.log('📱 [PushNotification] Requester info:', requesterInfo);
+    
     if (!recipientPushToken) {
-      console.warn('Aucun token de notification pour le destinataire');
+      console.warn('⚠️ [PushNotification] Aucun token de notification pour le destinataire');
       return { success: false, error: 'Aucun token de notification' };
     }
 
     const title = 'Nouvelle demande d\'amitié';
     const body = `${requesterInfo.firstName} ${requesterInfo.lastName} vous a envoyé une demande d'amitié`;
+    
+    console.log('📱 [PushNotification] Titre:', title);
+    console.log('📱 [PushNotification] Corps:', body);
     
     const data = {
       type: 'friend_request',
@@ -95,7 +102,12 @@ class PushNotificationService {
       requesterLastName: requesterInfo.lastName,
     };
 
-    return await this.sendPushNotification(recipientPushToken, title, body, data);
+    console.log('📱 [PushNotification] Données:', data);
+    
+    const result = await this.sendPushNotification(recipientPushToken, title, body, data);
+    console.log('📱 [PushNotification] Résultat final:', result);
+    
+    return result;
   }
 
   /**

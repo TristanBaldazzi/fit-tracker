@@ -22,6 +22,7 @@ import {
 } from 'react-native-paper';
 import { useAuth } from '../../context/AuthContext';
 import { userService, authService } from '../../services/api';
+import notificationService from '../../services/notificationService';
 import { colors, spacing, typography } from '../../styles/theme';
 
 const SettingsScreen = ({ navigation }) => {
@@ -31,6 +32,8 @@ const SettingsScreen = ({ navigation }) => {
   const [isUpdatingPublic, setIsUpdatingPublic] = useState(false);
   const [emailStatus, setEmailStatus] = useState(null);
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
+  const [notificationPermissionStatus, setNotificationPermissionStatus] = useState(null);
+  const [isRegisteringPushToken, setIsRegisteringPushToken] = useState(false);
   
   // État pour la modification du profil
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -106,6 +109,94 @@ const SettingsScreen = ({ navigation }) => {
       loadEmailStatus();
     }
   }, [user]);
+
+  // Vérifier le statut des permissions de notification
+  React.useEffect(() => {
+    checkNotificationPermissionStatus();
+  }, []);
+
+  // Re-vérifier quand l'utilisateur revient sur l'écran
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      checkNotificationPermissionStatus();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const checkNotificationPermissionStatus = async () => {
+    try {
+      console.log('🔔 [Settings] Vérification du statut des permissions...');
+      const status = await notificationService.checkPermissionStatus();
+      console.log('🔔 [Settings] Statut obtenu:', status);
+      setNotificationPermissionStatus(status);
+    } catch (error) {
+      console.error('❌ [Settings] Erreur lors de la vérification des permissions:', error);
+      // Mettre un statut par défaut pour afficher le bouton
+      setNotificationPermissionStatus({ granted: false, status: 'unknown', canRequest: true });
+    }
+  };
+
+  const handleEnablePushNotifications = async () => {
+    setIsRegisteringPushToken(true);
+    try {
+      console.log('🔔 [Settings] Début activation notifications push...');
+      
+      // D'abord, forcer la demande de permissions
+      console.log('🔔 [Settings] Étape 1: Demande des permissions...');
+      const permissionResult = await notificationService.forceRequestPermissions();
+      
+      if (!permissionResult.success) {
+        Alert.alert(
+          'Permissions requises',
+          permissionResult.error || 'Les permissions de notification sont nécessaires pour recevoir des alertes. Veuillez les activer dans les paramètres de votre appareil.',
+          [
+            {
+              text: 'Annuler',
+              style: 'cancel'
+            },
+            {
+              text: 'Ouvrir les paramètres',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              }
+            }
+          ]
+        );
+        setIsRegisteringPushToken(false);
+        return;
+      }
+
+      // Ensuite, enregistrer le token
+      console.log('🔔 [Settings] Étape 2: Enregistrement du token...');
+      const result = await notificationService.registerPushToken();
+      
+      if (result.success) {
+        Alert.alert(
+          'Succès',
+          'Les notifications push ont été activées avec succès ! Vous recevrez maintenant des notifications pour les demandes d\'amitié.'
+        );
+        await checkNotificationPermissionStatus();
+        await refreshUser();
+      } else {
+        Alert.alert(
+          'Erreur',
+          result.error || 'Impossible d\'enregistrer le token. Vérifiez les logs pour plus de détails.'
+        );
+      }
+    } catch (error) {
+      console.error('❌ [Settings] Erreur activation notifications:', error);
+      Alert.alert(
+        'Erreur',
+        `Impossible d'activer les notifications push: ${error.message || 'Erreur inconnue'}`
+      );
+    } finally {
+      setIsRegisteringPushToken(false);
+    }
+  };
 
   // Synchroniser isPublic avec les données utilisateur
   React.useEffect(() => {
@@ -344,7 +435,11 @@ const SettingsScreen = ({ navigation }) => {
           
           <List.Item
             title="Notifications"
-            description="Recevoir des notifications push"
+            description={notificationPermissionStatus?.granted 
+              ? "Recevoir des notifications push" 
+              : notificationPermissionStatus?.status === 'denied'
+              ? "Les notifications sont désactivées. Activez-les dans les paramètres de votre appareil."
+              : "Activez les notifications pour recevoir des alertes"}
             left={(props) => <List.Icon {...props} icon="bell" />}
             right={() => (
               <Switch
@@ -354,6 +449,58 @@ const SettingsScreen = ({ navigation }) => {
               />
             )}
           />
+          
+          {/* Afficher le bouton si les permissions ne sont pas accordées OU si le statut n'est pas encore vérifié */}
+          {(!notificationPermissionStatus || !notificationPermissionStatus.granted) && (
+            <>
+              <Divider />
+              <List.Item
+                title="Activer les notifications push"
+                description={
+                  notificationPermissionStatus?.status === 'denied'
+                    ? "Les notifications ont été refusées. Cliquez pour ouvrir les paramètres de votre appareil."
+                    : "Autoriser l'application à vous envoyer des notifications (demandes d'amitié, etc.)"
+                }
+                left={(props) => <List.Icon {...props} icon="bell-ring" color={colors.warning} />}
+                right={() => (
+                  <Button
+                    mode="contained"
+                    onPress={handleEnablePushNotifications}
+                    loading={isRegisteringPushToken}
+                    disabled={isRegisteringPushToken}
+                    compact
+                    icon="bell-outline"
+                  >
+                    {notificationPermissionStatus?.status === 'denied' ? 'Paramètres' : 'Activer'}
+                  </Button>
+                )}
+              />
+            </>
+          )}
+          
+          {/* Afficher le bouton d'enregistrement si les permissions sont accordées mais pas de token */}
+          {notificationPermissionStatus?.granted && !user?.pushToken && (
+            <>
+              <Divider />
+              <List.Item
+                title="Enregistrer le token de notification"
+                description="Enregistrer votre appareil pour recevoir des notifications"
+                left={(props) => <List.Icon {...props} icon="cellphone" color={colors.primary} />}
+                right={() => (
+                  <Button
+                    mode="outlined"
+                    onPress={handleEnablePushNotifications}
+                    loading={isRegisteringPushToken}
+                    disabled={isRegisteringPushToken}
+                    compact
+                    icon="refresh"
+                  >
+                    Enregistrer
+                  </Button>
+                )}
+              />
+            </>
+          )}
           
           <Divider />
           
