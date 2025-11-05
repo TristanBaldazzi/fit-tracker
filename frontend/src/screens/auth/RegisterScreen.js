@@ -2,18 +2,17 @@ import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
-  ScrollView,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import {
   TextInput,
   Button,
   Text,
-  Card,
-  Divider,
   ActivityIndicator,
+  Surface,
 } from 'react-native-paper';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, typography } from '../../styles/theme';
@@ -106,15 +105,21 @@ const RegisterScreen = ({ navigation }) => {
     <KeyboardAvoidingView 
       style={styles.container} 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Créer un compte</Text>
-          <Text style={styles.subtitle}>Rejoignez la communauté FitTrack</Text>
+          <Text style={styles.subtitle}>Rejoins la communauté FitFlow</Text>
         </View>
 
-        <Card style={styles.card}>
-          <Card.Content>
+          {/* Form Card */}
+          <Surface style={styles.card} elevation={8}>
             <View style={styles.nameRow}>
               <TextInput
                 label="Prénom"
@@ -123,6 +128,9 @@ const RegisterScreen = ({ navigation }) => {
                 mode="outlined"
                 style={[styles.input, styles.halfInput]}
                 disabled={isLoading}
+                contentStyle={styles.inputContent}
+                outlineColor={colors.primary + '40'}
+                activeOutlineColor={colors.primary}
               />
               <TextInput
                 label="Nom"
@@ -131,6 +139,9 @@ const RegisterScreen = ({ navigation }) => {
                 mode="outlined"
                 style={[styles.input, styles.halfInput]}
                 disabled={isLoading}
+                contentStyle={styles.inputContent}
+                outlineColor={colors.primary + '40'}
+                activeOutlineColor={colors.primary}
               />
             </View>
 
@@ -143,6 +154,9 @@ const RegisterScreen = ({ navigation }) => {
               autoComplete="username"
               style={styles.input}
               disabled={isLoading}
+              contentStyle={styles.inputContent}
+              outlineColor={colors.primary + '40'}
+              activeOutlineColor={colors.primary}
             />
 
             <TextInput
@@ -155,6 +169,9 @@ const RegisterScreen = ({ navigation }) => {
               autoComplete="email"
               style={styles.input}
               disabled={isLoading}
+              contentStyle={styles.inputContent}
+              outlineColor={colors.primary + '40'}
+              activeOutlineColor={colors.primary}
             />
 
             <TextInput
@@ -166,12 +183,15 @@ const RegisterScreen = ({ navigation }) => {
               autoComplete="password-new"
               style={styles.input}
               disabled={isLoading}
+              contentStyle={styles.inputContent}
               right={
                 <TextInput.Icon
                   icon={showPassword ? 'eye-off' : 'eye'}
                   onPress={() => setShowPassword(!showPassword)}
                 />
               }
+              outlineColor={colors.primary + '40'}
+              activeOutlineColor={colors.primary}
             />
 
             <TextInput
@@ -183,12 +203,15 @@ const RegisterScreen = ({ navigation }) => {
               autoComplete="password-new"
               style={styles.input}
               disabled={isLoading}
+              contentStyle={styles.inputContent}
               right={
                 <TextInput.Icon
                   icon={showConfirmPassword ? 'eye-off' : 'eye'}
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                 />
               }
+              outlineColor={colors.primary + '40'}
+              activeOutlineColor={colors.primary}
             />
 
             <Button
@@ -197,54 +220,61 @@ const RegisterScreen = ({ navigation }) => {
               style={styles.registerButton}
               disabled={isLoading}
               contentStyle={styles.buttonContent}
+              buttonColor={colors.primary}
+              labelStyle={styles.buttonLabel}
             >
               {isLoading ? <ActivityIndicator color="white" /> : 'S\'inscrire'}
             </Button>
 
             <View style={styles.dividerContainer}>
-              <Divider style={styles.divider} />
-              <Text style={styles.dividerText}>OU</Text>
-              <Divider style={styles.divider} />
+              <View style={styles.divider} />
+              <Text style={styles.dividerText}>ou</Text>
+              <View style={styles.divider} />
             </View>
 
             <Button
-              mode="outlined"
+              mode="contained-tonal"
               onPress={handleAppleLogin}
               style={styles.appleButton}
               disabled={isLoading}
               contentStyle={styles.buttonContent}
               icon="apple"
+              buttonColor={colors.surface}
+              textColor={colors.text}
+              labelStyle={styles.appleButtonLabel}
             >
               Continuer avec Apple
             </Button>
-          </Card.Content>
-        </Card>
+          </Surface>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Vous avez déjà un compte ?{' '}
-            <Text
-              style={styles.linkText}
-              onPress={() => navigation.navigate('Login')}
-            >
-              Se connecter
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Déjà un compte ?{' '}
+              <Text
+                style={styles.linkText}
+                onPress={() => navigation.navigate('Login')}
+              >
+                Se connecter
+              </Text>
             </Text>
-          </Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
-  scrollContainer: {
+  scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingTop: Platform.OS === 'ios' ? 40 : 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
   },
   header: {
     alignItems: 'center',
@@ -252,62 +282,94 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.h1,
+    fontSize: 36,
     color: colors.primary,
-    fontWeight: 'bold',
-    marginBottom: spacing.sm,
+    fontWeight: '800',
+    marginBottom: spacing.xs,
+    letterSpacing: -1,
   },
   subtitle: {
     ...typography.body1,
+    fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
+    fontWeight: '500',
   },
   card: {
+    borderRadius: 24,
+    padding: spacing.xl,
+    backgroundColor: colors.surface,
     marginBottom: spacing.lg,
-    elevation: 4,
   },
   nameRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   halfInput: {
-    flex: 0.48,
+    flex: 1,
   },
   input: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm + 2,
+    backgroundColor: colors.surface,
+  },
+  inputContent: {
+    fontSize: 15,
   },
   registerButton: {
-    marginTop: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  appleButton: {
-    marginBottom: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    borderRadius: 12,
+    elevation: 0,
   },
   buttonContent: {
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.sm + 4,
+  },
+  buttonLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: spacing.lg,
+    marginVertical: spacing.md,
   },
   divider: {
     flex: 1,
+    height: 1,
+    backgroundColor: colors.textLight + '30',
   },
   dividerText: {
     ...typography.caption,
+    fontSize: 12,
     color: colors.textSecondary,
     marginHorizontal: spacing.md,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  appleButton: {
+    marginBottom: spacing.xs,
+    borderRadius: 12,
+    borderWidth: 0,
+  },
+  appleButtonLabel: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   footer: {
     alignItems: 'center',
+    marginTop: spacing.md,
   },
   footerText: {
     ...typography.body2,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   linkText: {
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
 });
 

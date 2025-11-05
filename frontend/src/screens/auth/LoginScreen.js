@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
-  ScrollView,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -11,9 +10,8 @@ import {
   TextInput,
   Button,
   Text,
-  Card,
-  Divider,
   ActivityIndicator,
+  Surface,
 } from 'react-native-paper';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, typography } from '../../styles/theme';
@@ -55,15 +53,17 @@ const LoginScreen = ({ navigation }) => {
     <KeyboardAvoidingView 
       style={styles.container} 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <View style={styles.content}>
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>FitTrack</Text>
-          <Text style={styles.subtitle}>Connectez-vous pour continuer</Text>
+          <Text style={styles.title}>FitFlow</Text>
+          <Text style={styles.subtitle}>Ton coach fitness personnel</Text>
         </View>
 
-        <Card style={styles.card}>
-          <Card.Content>
+          {/* Form Card */}
+          <Surface style={styles.card} elevation={8}>
             <TextInput
               label="Email"
               value={email}
@@ -74,6 +74,9 @@ const LoginScreen = ({ navigation }) => {
               autoComplete="email"
               style={styles.input}
               disabled={isLoading}
+              contentStyle={styles.inputContent}
+              outlineColor={colors.primary + '40'}
+              activeOutlineColor={colors.primary}
             />
 
             <TextInput
@@ -85,12 +88,15 @@ const LoginScreen = ({ navigation }) => {
               autoComplete="password"
               style={styles.input}
               disabled={isLoading}
+              contentStyle={styles.inputContent}
               right={
                 <TextInput.Icon
                   icon={showPassword ? 'eye-off' : 'eye'}
                   onPress={() => setShowPassword(!showPassword)}
                 />
               }
+              outlineColor={colors.primary + '40'}
+              activeOutlineColor={colors.primary}
             />
 
             <Button
@@ -99,6 +105,8 @@ const LoginScreen = ({ navigation }) => {
               style={styles.loginButton}
               disabled={isLoading}
               contentStyle={styles.buttonContent}
+              buttonColor={colors.primary}
+              labelStyle={styles.buttonLabel}
             >
               {isLoading ? <ActivityIndicator color="white" /> : 'Se connecter'}
             </Button>
@@ -109,54 +117,60 @@ const LoginScreen = ({ navigation }) => {
               style={styles.forgotPasswordButton}
               disabled={isLoading}
               textColor={colors.primary}
+              labelStyle={styles.linkLabel}
             >
               Mot de passe oublié ?
             </Button>
 
             <View style={styles.dividerContainer}>
-              <Divider style={styles.divider} />
-              <Text style={styles.dividerText}>OU</Text>
-              <Divider style={styles.divider} />
+              <View style={styles.divider} />
+              <Text style={styles.dividerText}>ou</Text>
+              <View style={styles.divider} />
             </View>
 
             <Button
-              mode="outlined"
+              mode="contained-tonal"
               onPress={handleAppleLogin}
               style={styles.appleButton}
               disabled={isLoading}
               contentStyle={styles.buttonContent}
               icon="apple"
+              buttonColor={colors.surface}
+              textColor={colors.text}
+              labelStyle={styles.appleButtonLabel}
             >
               Continuer avec Apple
             </Button>
-          </Card.Content>
-        </Card>
+          </Surface>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Vous n'avez pas de compte ?{' '}
-            <Text
-              style={styles.linkText}
-              onPress={() => navigation.navigate('Register')}
-            >
-              S'inscrire
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Pas encore de compte ?{' '}
+              <Text
+                style={styles.linkText}
+                onPress={() => navigation.navigate('Register')}
+              >
+                S'inscrire
+              </Text>
             </Text>
-          </Text>
+          </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
-  scrollContainer: {
-    flexGrow: 1,
+  content: {
+    flex: 1,
     justifyContent: 'center',
-    padding: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
   },
   header: {
     alignItems: 'center',
@@ -164,58 +178,93 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.h1,
+    fontSize: 42,
     color: colors.primary,
-    fontWeight: 'bold',
-    marginBottom: spacing.sm,
+    fontWeight: '800',
+    marginBottom: spacing.xs,
+    letterSpacing: -1,
   },
   subtitle: {
     ...typography.body1,
+    fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
+    fontWeight: '500',
   },
   card: {
+    borderRadius: 24,
+    padding: spacing.xl,
+    backgroundColor: colors.surface,
     marginBottom: spacing.lg,
-    elevation: 4,
   },
   input: {
     marginBottom: spacing.md,
+    backgroundColor: colors.surface,
+  },
+  inputContent: {
+    fontSize: 16,
   },
   loginButton: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  forgotPasswordButton: {
-    marginBottom: spacing.lg,
-  },
-  appleButton: {
-    marginBottom: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    borderRadius: 12,
+    elevation: 0,
   },
   buttonContent: {
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.sm + 4,
+  },
+  buttonLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  forgotPasswordButton: {
+    marginBottom: spacing.md,
+  },
+  linkLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: spacing.lg,
+    marginVertical: spacing.md,
   },
   divider: {
     flex: 1,
+    height: 1,
+    backgroundColor: colors.textLight + '30',
   },
   dividerText: {
     ...typography.caption,
+    fontSize: 12,
     color: colors.textSecondary,
     marginHorizontal: spacing.md,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  appleButton: {
+    marginBottom: spacing.xs,
+    borderRadius: 12,
+    borderWidth: 0,
+  },
+  appleButtonLabel: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   footer: {
     alignItems: 'center',
+    marginTop: spacing.md,
   },
   footerText: {
     ...typography.body2,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   linkText: {
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
 });
 
