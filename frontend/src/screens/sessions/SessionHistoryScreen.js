@@ -202,7 +202,7 @@ const SessionHistoryScreen = ({ navigation }) => {
                       style={styles.actionButton}
                       compact
                     >
-                      Répéter
+                      Copier
                     </Button>
                   </View>
                 </Card.Content>

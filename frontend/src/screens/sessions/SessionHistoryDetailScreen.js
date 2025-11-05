@@ -15,12 +15,14 @@ import {
   Chip,
 } from 'react-native-paper';
 import { sessionService } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, typography } from '../../styles/theme';
 
 const SessionHistoryDetailScreen = ({ route, navigation }) => {
-  const { sessionId } = route.params;
-  const [session, setSession] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { sessionId, completedSession } = route.params;
+  const [session, setSession] = useState(completedSession || null);
+  const [isLoading, setIsLoading] = useState(!completedSession);
+  const { refreshUser } = useAuth();
 
   useEffect(() => {
     loadSession();
@@ -84,6 +86,49 @@ const SessionHistoryDetailScreen = ({ route, navigation }) => {
       console.error('Erreur lors de la copie:', error);
       Alert.alert('Erreur', 'Impossible de copier la séance');
     }
+  };
+
+  const handleDeleteSession = () => {
+    const completionId = session?.completionId || session?._id;
+    if (!completionId) {
+      Alert.alert('Erreur', 'Impossible d\'identifier la séance complétée');
+      return;
+    }
+
+    Alert.alert(
+      'Supprimer la séance',
+      `Êtes-vous sûr de vouloir supprimer "${session.name}" ? Cette action mettra à jour vos statistiques.`,
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await sessionService.deleteCompletedSession(sessionId, completionId);
+              Alert.alert('Succès', 'Séance supprimée avec succès');
+              await refreshUser();
+              navigation.goBack();
+            } catch (error) {
+              console.error('Erreur suppression:', error);
+              Alert.alert('Erreur', error.response?.data?.message || 'Impossible de supprimer la séance');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEditSession = () => {
+    const completionId = session?.completionId || session?._id;
+    navigation.navigate('EditCompletedSession', {
+      sessionId: sessionId,
+      completionId: completionId,
+      completedSession: session
+    });
   };
 
   if (isLoading) {
@@ -159,7 +204,7 @@ const SessionHistoryDetailScreen = ({ route, navigation }) => {
             <View key={index}>
               <List.Item
                 title={exercise.name}
-                description={`${exercise.sets.filter(set => set.completed).length} séries complétées • ${exercise.category}`}
+                description={`${exercise.sets.filter(set => set.completed).length} séries complétées • ${exercise.category || 'Mixte'}`}
                 left={(props) => <List.Icon {...props} icon="dumbbell" />}
                 right={() => (
                   <View style={styles.exerciseDetails}>
@@ -204,10 +249,29 @@ const SessionHistoryDetailScreen = ({ route, navigation }) => {
             mode="contained"
             onPress={handleRepeatSession}
             style={styles.actionButton}
-            icon="refresh"
+            icon="content-copy"
           >
-            Répéter cette séance
+            Copier la séance
           </Button>
+          <View style={styles.actionButtonsRow}>
+            <Button
+              mode="outlined"
+              onPress={handleEditSession}
+              style={[styles.actionButton, styles.editButton]}
+              icon="pencil"
+            >
+              Modifier
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={handleDeleteSession}
+              style={[styles.actionButton, styles.deleteButton]}
+              icon="delete"
+              textColor={colors.error}
+            >
+              Supprimer
+            </Button>
+          </View>
         </Card.Content>
       </Card>
 
@@ -350,6 +414,17 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     marginTop: spacing.sm,
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  editButton: {
+    flex: 1,
+  },
+  deleteButton: {
+    flex: 1,
   },
   bottomSpacing: {
     height: spacing.xl,

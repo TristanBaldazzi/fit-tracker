@@ -5,6 +5,7 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Dimensions,
 } from 'react-native';
 import {
   Card,
@@ -14,6 +15,8 @@ import {
   Avatar,
   Chip,
   FAB,
+  Surface,
+  Divider,
 } from 'react-native-paper';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, typography } from '../../styles/theme';
@@ -100,26 +103,54 @@ const HomeScreen = ({ navigation }) => {
         }
       >
         {/* En-tête avec profil utilisateur */}
-        <Card style={styles.profileCard}>
-          <Card.Content style={styles.profileContent}>
+        <View style={styles.profileCard}>
+          <View style={styles.profileContent}>
             <View style={styles.profileInfo}>
-              <Avatar.Text
-                size={60}
-                label={`${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`}
-                style={styles.avatar}
-              />
-              <View style={styles.userInfo}>
-                <Text style={styles.welcomeText}>
-                  Bonjour, {user?.firstName || 'Utilisateur'} !
-                </Text>
-                <View style={styles.levelContainer}>
-                  <Text style={styles.levelText}>
-                    Niveau {user?.level || 1} {getLevelBadge(user?.level || 1)}
-                  </Text>
-                  <Text style={styles.xpText}>
-                    {user?.xp || 0} XP
+              <View style={styles.avatarContainer}>
+                <Avatar.Text
+                  size={56}
+                  label={`${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`}
+                  style={styles.avatar}
+                  labelStyle={styles.avatarLabel}
+                />
+                <View style={styles.avatarBadge}>
+                  <Text style={styles.avatarBadgeText}>
+                    {getLevelBadge(user?.level || 1)}
                   </Text>
                 </View>
+              </View>
+              <View style={styles.userInfo}>
+                <Text style={styles.welcomeText}>
+                  Salut {user?.firstName || 'Utilisateur'} ! 👋
+                </Text>
+                <View style={styles.statsRowCompact}>
+                  <View style={styles.statBadge}>
+                    <Text style={styles.statBadgeEmoji}>
+                      {getLevelBadge(user?.level || 1)}
+                    </Text>
+                    <Text style={styles.statBadgeText}>
+                      Niveau {user?.level || 1}
+                    </Text>
+                  </View>
+                  <View style={styles.statBadge}>
+                    <Text style={styles.statBadgeEmoji}>⚡</Text>
+                    <Text style={styles.statBadgeText}>
+                      {user?.xp || 0} XP
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+            <View style={styles.progressContainer}>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressLabel}>
+                  Niveau {user?.level + 1 || 2}
+                </Text>
+                <Text style={styles.progressPercent}>
+                  {Math.round(calculateLevelProgress() * 100)}%
+                </Text>
+              </View>
+              <View style={styles.progressBarContainer}>
                 <ProgressBar
                   progress={calculateLevelProgress()}
                   color={colors.primary}
@@ -127,97 +158,152 @@ const HomeScreen = ({ navigation }) => {
                 />
               </View>
             </View>
-          </Card.Content>
-        </Card>
+          </View>
+        </View>
 
         {/* Statistiques rapides */}
-        <Card style={styles.statsCard}>
-          <Card.Content>
-            <Text style={styles.sectionTitle}>Vos statistiques</Text>
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{user?.totalSessionsCompleted || 0}</Text>
-                <Text style={styles.statLabel}>Séances</Text>
+        <View style={styles.statsContainer}>
+          <Text style={styles.sectionTitle}>🔥 Tes stats</Text>
+          <View style={styles.statsRow}>
+            <TouchableOpacity activeOpacity={0.8} style={styles.statCardWrapper}>
+              <View style={[styles.statCard, styles.statCard1]}>
+                <View style={styles.statCardGradient} />
+                <View style={styles.statContent}>
+                  <View style={styles.statIconContainer}>
+                    <Text style={styles.statIcon}>🏋️</Text>
+                  </View>
+                  <Text style={styles.statNumber}>{user?.totalSessionsCompleted || 0}</Text>
+                  <Text style={styles.statLabel}>Séances</Text>
+                </View>
+                <View style={styles.statCardAccent} />
+                <View style={styles.statCardAccent2} />
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>
-                  {Math.round((user?.stats?.totalWorkoutTime || 0) / 60)}h
-                </Text>
-                <Text style={styles.statLabel}>Entraînement</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity activeOpacity={0.8} style={styles.statCardWrapper}>
+              <View style={[styles.statCard, styles.statCard2]}>
+                <View style={styles.statCardGradient} />
+                <View style={styles.statContent}>
+                  <View style={styles.statIconContainer}>
+                    <Text style={styles.statIcon}>⏱️</Text>
+                  </View>
+                  <Text style={styles.statNumber}>
+                    {Math.round((user?.stats?.totalWorkoutTime || 0) / 60)}h
+                  </Text>
+                  <Text style={styles.statLabel}>Entraînement</Text>
+                </View>
+                <View style={styles.statCardAccent} />
+                <View style={styles.statCardAccent2} />
               </View>
-              <TouchableOpacity 
-                style={styles.statItem}
-                onPress={() => showWeightInfo(user?.stats?.totalWeightLifted || 0)}
-              >
-                <Text style={styles.statNumber}>
-                  {formatWeight(user?.stats?.totalWeightLifted || 0)}
-                </Text>
-                <Text style={styles.statLabel}>Poids soulevé</Text>
-              </TouchableOpacity>
-            </View>
-          </Card.Content>
-        </Card>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              activeOpacity={0.8}
+              style={styles.statCardWrapper}
+              onPress={() => showWeightInfo(user?.stats?.totalWeightLifted || 0)}
+            >
+              <View style={[styles.statCard, styles.statCard3]}>
+                <View style={styles.statCardGradient} />
+                <View style={styles.statContent}>
+                  <View style={styles.statIconContainer}>
+                    <Text style={styles.statIcon}>💪</Text>
+                  </View>
+                  <Text style={styles.statNumber}>
+                    {formatWeight(user?.stats?.totalWeightLifted || 0)}
+                  </Text>
+                  <Text style={styles.statLabel}>Poids soulevé</Text>
+                </View>
+                <View style={styles.statCardAccent} />
+                <View style={styles.statCardAccent2} />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
 
 
         {/* Séances récentes */}
-        <Card style={styles.sectionCard}>
-          <Card.Content>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Séances récentes</Text>
-              <Button
-                mode="text"
-                onPress={() => navigation.navigate('Sessions')}
-                compact
-              >
-                Voir tout
-              </Button>
-            </View>
-            {recentSessions.length > 0 ? (
-              recentSessions.map((session) => (
-                <View key={session._id} style={styles.sessionItem}>
-                  <View style={styles.sessionInfo}>
-                    <Text style={styles.sessionName}>{session.name}</Text>
-                    <Text style={styles.sessionDetails}>
-                      {session.estimatedDuration}min • {session.exercises.length} exercices
-                    </Text>
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>🔥 Tes dernières séances</Text>
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('Sessions')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.seeAllButtonContainer}>
+                <Text style={styles.seeAllButton}>Voir tout</Text>
+                <Text style={styles.seeAllArrow}>→</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          {recentSessions.length > 0 ? (
+            <View style={styles.sessionsList}>
+              {recentSessions.map((session, index) => (
+                <TouchableOpacity
+                  key={session._id}
+                  onPress={() => navigation.navigate('SessionDetail', { sessionId: session._id })}
+                  activeOpacity={0.7}
+                  style={styles.sessionCardWrapper}
+                >
+                  <View style={styles.sessionCard}>
+                    <View style={styles.sessionLeft}>
+                      <View style={styles.sessionIconContainer}>
+                        <Text style={styles.sessionIcon}>💪</Text>
+                      </View>
+                      <View style={styles.sessionInfo}>
+                        <Text style={styles.sessionName}>{session.name}</Text>
+                        <View style={styles.sessionMeta}>
+                          <View style={styles.sessionMetaItem}>
+                            <Text style={styles.sessionMetaIcon}>⏱️</Text>
+                            <Text style={styles.sessionMetaText}>
+                              {session.estimatedDuration}min
+                            </Text>
+                          </View>
+                          <Text style={styles.sessionMetaDot}>•</Text>
+                          <View style={styles.sessionMetaItem}>
+                            <Text style={styles.sessionMetaIcon}>🏋️</Text>
+                            <Text style={styles.sessionMetaText}>
+                              {session.exercises.length} exos
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyBadgeColor(session.difficulty) }]}>
+                      <Text style={styles.difficultyBadgeText}>
+                        {getDifficultyLabel(session.difficulty)}
+                      </Text>
+                    </View>
                   </View>
-                  <Chip
-                    mode="outlined"
-                    compact
-                    style={[
-                      styles.difficultyChip,
-                      { backgroundColor: getDifficultyColor(session.difficulty) }
-                    ]}
-                  >
-                    {getDifficultyLabel(session.difficulty)}
-                  </Chip>
-                </View>
-              ))
-            ) : (
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyStateCard}>
               <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>🎯</Text>
                 <Text style={styles.emptyText}>
-                  Aucune séance récente
+                  Pas encore de séances ?
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  Crée ta première séance et commence ton parcours ! 💪
                 </Text>
                 <Button
                   mode="contained"
                   onPress={() => navigation.navigate('CreateSession')}
                   style={styles.emptyButton}
+                  icon="plus"
+                  buttonColor={colors.primary}
+                  contentStyle={styles.emptyButtonContent}
+                  labelStyle={styles.emptyButtonLabel}
                 >
                   Créer une séance
                 </Button>
               </View>
-            )}
-          </Card.Content>
-        </Card>
+            </View>
+          )}
+        </View>
 
       </ScrollView>
-
-      {/* Bouton d'action flottant */}
-      <FAB
-        style={styles.fab}
-        icon="plus"
-        onPress={() => navigation.navigate('CreateSession')}
-      />
 
       {/* Dialogue de reprise de séance */}
       <ResumeSessionDialog
@@ -237,6 +323,15 @@ const getDifficultyColor = (difficulty) => {
     case 'medium': return colors.warning + '20';
     case 'hard': return colors.error + '20';
     default: return colors.gray + '20';
+  }
+};
+
+const getDifficultyBadgeColor = (difficulty) => {
+  switch (difficulty) {
+    case 'easy': return colors.success;
+    case 'medium': return colors.warning;
+    case 'hard': return colors.error;
+    default: return colors.gray;
   }
 };
 
@@ -274,6 +369,8 @@ const getCategoryLabel = (category) => {
   }
 };
 
+const { width } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -282,131 +379,419 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  // Profile Card Styles
   profileCard: {
-    margin: spacing.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
+    borderRadius: 20,
+    backgroundColor: colors.white,
     elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    overflow: 'hidden',
   },
   profileContent: {
-    padding: spacing.lg,
+    padding: spacing.md,
   },
   profileInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: spacing.md,
   },
   avatar: {
     backgroundColor: colors.primary,
-    marginRight: spacing.md,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  avatarLabel: {
+    color: colors.white,
+    fontWeight: 'bold',
+    fontSize: 24,
+  },
+  avatarBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+    elevation: 3,
+  },
+  avatarBadgeText: {
+    fontSize: 12,
   },
   userInfo: {
     flex: 1,
   },
   welcomeText: {
-    ...typography.h3,
+    ...typography.h4,
     color: colors.text,
+    fontWeight: '700',
     marginBottom: spacing.xs,
+    fontSize: 18,
   },
-  levelContainer: {
+  statsRowCompact: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    gap: spacing.xs,
+    flexWrap: 'wrap',
   },
-  levelText: {
-    ...typography.body1,
+  statBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primaryLight + '20',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 16,
+    gap: spacing.xs,
+  },
+  statBadgeEmoji: {
+    fontSize: 14,
+  },
+  statBadgeText: {
+    ...typography.caption,
     color: colors.primary,
     fontWeight: '600',
-    marginRight: spacing.sm,
+    fontSize: 12,
   },
-  xpText: {
+  progressContainer: {
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  progressLabel: {
     ...typography.caption,
     color: colors.textSecondary,
+    fontWeight: '500',
+    fontSize: 11,
+  },
+  progressPercent: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  progressBarContainer: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    height: 8,
+    backgroundColor: colors.lightGray,
   },
   progressBar: {
     height: 8,
-    borderRadius: 4,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
   },
-  statsCard: {
-    margin: spacing.md,
-    marginTop: 0,
+  // Stats Section Styles
+  statsContainer: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  statCardWrapper: {
+    flex: 1,
+  },
+  statCard: {
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: 20,
+    minHeight: 140,
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+  },
+  statCard1: {
+    backgroundColor: '#FF6B6B',
+  },
+  statCard2: {
+    backgroundColor: '#4ECDC4',
+  },
+  statCard3: {
+    backgroundColor: '#FFE66D',
+  },
+  statCardGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+  },
+  statContent: {
+    alignItems: 'center',
+    zIndex: 1,
+    position: 'relative',
+  },
+  statCardAccent: {
+    position: 'absolute',
+    top: -30,
+    right: -30,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  statCardAccent2: {
+    position: 'absolute',
+    bottom: -20,
+    left: -20,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  statIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.7)',
     elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
+  statIcon: {
+    fontSize: 30,
+  },
+  statNumber: {
+    ...typography.h2,
+    color: colors.white,
+    fontWeight: '900',
+    marginBottom: spacing.xs,
+    fontSize: 32,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    ...typography.body2,
+    color: colors.white,
+    fontWeight: '800',
+    textAlign: 'center',
+    fontSize: 11,
+    opacity: 1,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  // Section Card Styles
   sectionCard: {
-    margin: spacing.md,
-    marginTop: 0,
-    elevation: 4,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.lg,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.md,
+    paddingHorizontal: spacing.xs,
   },
   sectionTitle: {
     ...typography.h4,
     color: colors.text,
-    fontWeight: '600',
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    fontSize: 19,
   },
-  statsRow: {
+  seeAllButtonContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statItem: {
     alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 16,
+    backgroundColor: colors.primaryLight + '15',
   },
-  statNumber: {
-    ...typography.h3,
+  seeAllButton: {
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.primary,
-    fontWeight: 'bold',
   },
-  statLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
+  seeAllArrow: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
   },
-  sessionItem: {
+  sessionsList: {
+    gap: spacing.sm,
+  },
+  sessionCardWrapper: {
+    marginBottom: spacing.sm,
+  },
+  sessionCard: {
+    borderRadius: 18,
+    backgroundColor: colors.white,
+    padding: spacing.md,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    justifyContent: 'space-between',
+  },
+  sessionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.md,
+  },
+  sessionIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primaryLight + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.primaryLight + '30',
+  },
+  sessionIcon: {
+    fontSize: 26,
   },
   sessionInfo: {
     flex: 1,
   },
   sessionName: {
-    ...typography.body1,
+    ...typography.h4,
     color: colors.text,
-    fontWeight: '500',
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+    fontSize: 16,
+    lineHeight: 22,
   },
-  sessionDetails: {
+  sessionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+  },
+  sessionMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  sessionMetaIcon: {
+    fontSize: 13,
+  },
+  sessionMetaText: {
     ...typography.caption,
     color: colors.textSecondary,
-    marginTop: spacing.xs,
+    fontWeight: '600',
+    fontSize: 12,
   },
-  difficultyChip: {
-    marginLeft: spacing.sm,
+  sessionMetaDot: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
   },
-  categoryChip: {
-    marginLeft: spacing.sm,
+  difficultyBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: 18,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  difficultyBadgeText: {
+    ...typography.caption,
+    color: colors.white,
+    fontWeight: '700',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  emptyStateCard: {
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    padding: spacing.xl,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: spacing.lg,
   },
-  emptyText: {
-    ...typography.body2,
-    color: colors.textSecondary,
+  emptyIcon: {
+    fontSize: 64,
     marginBottom: spacing.md,
+  },
+  emptyText: {
+    ...typography.h3,
+    color: colors.text,
+    fontWeight: '800',
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+    fontSize: 22,
+  },
+  emptySubtext: {
+    ...typography.body1,
+    color: colors.textSecondary,
+    marginBottom: spacing.xl,
+    textAlign: 'center',
+    paddingHorizontal: spacing.lg,
+    fontSize: 15,
+    lineHeight: 22,
   },
   emptyButton: {
     marginTop: spacing.sm,
+    borderRadius: 24,
+    paddingHorizontal: spacing.lg,
   },
-  fab: {
-    position: 'absolute',
-    margin: spacing.md,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.primary,
+  emptyButtonContent: {
+    paddingVertical: spacing.sm,
+  },
+  emptyButtonLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });
 

@@ -49,7 +49,7 @@ friendSchema.statics.getFriends = async function(userId) {
       { requester: userId, status: 'accepted' },
       { recipient: userId, status: 'accepted' }
     ]
-  }).populate('requester recipient', 'username firstName lastName avatar level xp');
+  }).populate('requester recipient', 'username firstName lastName avatar level xp totalSessionsCompleted');
   
   return friends.map(friendship => {
     const friend = friendship.requester._id.equals(userId) 
@@ -64,6 +64,7 @@ friendSchema.statics.getFriends = async function(userId) {
       avatar: friend.avatar,
       level: friend.level,
       xp: friend.xp,
+      totalSessionsCompleted: friend.totalSessionsCompleted || 0,
       friendshipId: friendship._id,
       acceptedAt: friendship.acceptedAt
     };

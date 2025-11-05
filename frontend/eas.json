@@ -1,0 +1,41 @@
+{
+  "cli": {
+    "version": ">= 5.2.0",
+    "promptToConfigurePushNotifications": false
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "ios": {
+        "buildConfiguration": "Release",
+        "image": "macos-sequoia-15.3-xcode-16.2"
+      }
+    },
+    "testflight": {
+      "distribution": "store",
+      "ios": {
+        "buildConfiguration": "Release",
+        "image": "macos-sequoia-15.3-xcode-16.2"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "tristan.tristan2003@yahoo.fr",
+        "ascAppId": "6754799265",
+        "appleTeamId": "HC2K8PBA5C"
+      }
+    }
+  }
+}

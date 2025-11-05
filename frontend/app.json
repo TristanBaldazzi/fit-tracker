@@ -17,8 +17,15 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tristanbaldazzi.fittracker",
+      "buildNumber": "14",
       "infoPlist": {
-        "NSAppleMusicUsageDescription": "Cette application n'utilise pas Apple Music."
+        "NSAppleMusicUsageDescription": "Cette application n'utilise pas Apple Music.",
+        "NSHealthShareUsageDescription": "FitTrack a besoin d'accéder à vos données de santé (comme les pas, les exercices et l'activité physique) pour suivre vos progrès et vous aider à atteindre vos objectifs de fitness.",
+        "NSHealthUpdateUsageDescription": "FitTrack a besoin de mettre à jour vos données de santé pour enregistrer vos séances d'entraînement et suivre votre activité physique.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "config": {
+        "usesAppleSignIn": true
       }
     },
     "android": {
@@ -32,7 +39,19 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-apple-authentication"
-    ]
+      [
+        "expo-apple-authentication",
+        {
+          "appleTeamId": "HC2K8PBA5C"
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c6f319b3-2a03-40a9-9741-72e37d36c484"
+      },
+      "vercelAutomationBypassSecret": "TBALDAZZIVERCEL12345676464563453"
+    }
   }
 }

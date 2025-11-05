@@ -87,20 +87,39 @@ const ProfileScreen = ({ navigation }) => {
       <Card style={styles.profileCard}>
         <Card.Content style={styles.profileContent}>
           <View style={styles.profileHeader}>
-            <Avatar.Text
-              size={100}
-              label={`${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`}
-              style={styles.avatar}
-            />
+            <View style={styles.avatarContainer}>
+              <Avatar.Text
+                size={80}
+                label={`${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`}
+                style={styles.avatar}
+                labelStyle={styles.avatarLabel}
+              />
+              <View style={styles.avatarBadge}>
+                <Text style={styles.avatarBadgeText}>
+                  {getLevelBadge(user?.level || 1)}
+                </Text>
+              </View>
+            </View>
             <View style={styles.profileInfo}>
               <Text style={styles.userName}>
                 {user?.firstName} {user?.lastName}
               </Text>
               <Text style={styles.userUsername}>@{user?.username}</Text>
               <View style={styles.levelContainer}>
-                <Text style={styles.levelText}>
-                  Niveau {user?.level || 1} {getLevelBadge(user?.level || 1)}
-                </Text>
+                <View style={styles.levelBadge}>
+                  <Text style={styles.levelBadgeEmoji}>
+                    {getLevelBadge(user?.level || 1)}
+                  </Text>
+                  <Text style={styles.levelBadgeText}>
+                    Niveau {user?.level || 1}
+                  </Text>
+                </View>
+                <View style={styles.xpBadge}>
+                  <Text style={styles.xpBadgeEmoji}>⚡</Text>
+                  <Text style={styles.xpBadgeText}>
+                    {user?.xp || 0} XP
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
@@ -108,9 +127,6 @@ const ProfileScreen = ({ navigation }) => {
           {/* Barre de progression du niveau */}
           <View style={styles.progressContainer}>
             <View style={styles.progressInfo}>
-              <Text style={styles.progressText}>
-                {user?.xp || 0} XP
-              </Text>
               <Text style={styles.progressText}>
                 {getXPToNextLevel()} XP jusqu'au niveau {user?.level + 1 || 2}
               </Text>
@@ -124,36 +140,55 @@ const ProfileScreen = ({ navigation }) => {
         </Card.Content>
       </Card>
 
-      {/* Statistiques principales */}
+      {/* Statistiques principales - Compact */}
       <Card style={styles.statsCard}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>Statistiques</Text>
+        <Card.Content style={styles.statsContent}>
+          <Text style={styles.sectionTitle}>🔥 Statistiques</Text>
           <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{user?.totalSessionsCompleted || 0}</Text>
-              <Text style={styles.statLabel}>Séances complétées</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>
-                {Math.round((user?.stats?.totalWorkoutTime || 0) / 60)}h
-              </Text>
-              <Text style={styles.statLabel}>Temps d'entraînement</Text>
-            </View>
             <TouchableOpacity 
-              style={styles.statItem}
+              style={styles.statItemCompact}
               onPress={() => showWeightInfo(user?.stats?.totalWeightLifted || 0)}
             >
-              <Text style={styles.statNumber}>
+              <View style={[styles.statIconContainer, styles.statIcon1]}>
+                <Text style={styles.statIcon}>🏋️</Text>
+              </View>
+              <Text style={styles.statNumberCompact}>{user?.totalSessionsCompleted || 0}</Text>
+              <Text style={styles.statLabelCompact}>Séances</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.statItemCompact}
+            >
+              <View style={[styles.statIconContainer, styles.statIcon2]}>
+                <Text style={styles.statIcon}>⏱️</Text>
+              </View>
+              <Text style={styles.statNumberCompact}>
+                {Math.round((user?.stats?.totalWorkoutTime || 0) / 60)}h
+              </Text>
+              <Text style={styles.statLabelCompact}>Temps</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.statItemCompact}
+              onPress={() => showWeightInfo(user?.stats?.totalWeightLifted || 0)}
+            >
+              <View style={[styles.statIconContainer, styles.statIcon3]}>
+                <Text style={styles.statIcon}>💪</Text>
+              </View>
+              <Text style={styles.statNumberCompact}>
                 {formatWeight(user?.stats?.totalWeightLifted || 0)}
               </Text>
-              <Text style={styles.statLabel}>Poids soulevé</Text>
+              <Text style={styles.statLabelCompact}>Poids</Text>
             </TouchableOpacity>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>
+            <TouchableOpacity 
+              style={styles.statItemCompact}
+            >
+              <View style={[styles.statIconContainer, styles.statIcon4]}>
+                <Text style={styles.statIcon}>📊</Text>
+              </View>
+              <Text style={styles.statNumberCompact}>
                 {user?.stats?.averageWorkoutTime || 0}min
               </Text>
-              <Text style={styles.statLabel}>Durée moyenne</Text>
-            </View>
+              <Text style={styles.statLabelCompact}>Moyenne</Text>
+            </TouchableOpacity>
           </View>
         </Card.Content>
       </Card>
@@ -161,13 +196,14 @@ const ProfileScreen = ({ navigation }) => {
       {/* Exercice favori */}
       {user?.stats?.favoriteExercise && (
         <Card style={styles.favoriteCard}>
-          <Card.Content>
-            <Text style={styles.sectionTitle}>Exercice favori</Text>
+          <Card.Content style={styles.favoriteContentCard}>
+            <Text style={styles.sectionTitle}>⭐ Exercice favori</Text>
             <View style={styles.favoriteContent}>
               <Chip
                 mode="outlined"
                 style={styles.favoriteChip}
                 textStyle={styles.favoriteChipText}
+                icon="star"
               >
                 {user.stats.favoriteExercise}
               </Chip>
@@ -179,7 +215,7 @@ const ProfileScreen = ({ navigation }) => {
       {/* Informations du compte */}
       <Card style={styles.infoCard}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>Informations du compte</Text>
+          <Text style={styles.sectionTitle}>📋 Informations</Text>
           
           <List.Item
             title="Membre depuis"
@@ -232,7 +268,7 @@ const ProfileScreen = ({ navigation }) => {
       {/* Actions rapides */}
       <Card style={styles.actionsCard}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>Actions rapides</Text>
+          <Text style={styles.sectionTitle}>⚙️ Actions rapides</Text>
           
           <Button
             mode="outlined"
@@ -275,118 +311,272 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   profileCard: {
-    margin: spacing.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
+    borderRadius: 20,
+    backgroundColor: colors.white,
     elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    overflow: 'hidden',
   },
   profileContent: {
-    padding: spacing.lg,
+    padding: spacing.md,
   },
   profileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: spacing.md,
   },
   avatar: {
     backgroundColor: colors.primary,
-    marginRight: spacing.lg,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  avatarLabel: {
+    color: colors.white,
+    fontWeight: 'bold',
+    fontSize: 32,
+  },
+  avatarBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+    elevation: 3,
+  },
+  avatarBadgeText: {
+    fontSize: 14,
   },
   profileInfo: {
     flex: 1,
   },
   userName: {
-    ...typography.h2,
+    ...typography.h3,
     color: colors.text,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginBottom: spacing.xs,
+    fontSize: 20,
   },
   userUsername: {
-    ...typography.body1,
+    ...typography.body2,
     color: colors.textSecondary,
     marginBottom: spacing.sm,
+    fontSize: 14,
   },
   levelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.xs,
+    flexWrap: 'wrap',
   },
-  levelText: {
-    ...typography.h4,
+  levelBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primaryLight + '20',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 16,
+    gap: spacing.xs,
+  },
+  levelBadgeEmoji: {
+    fontSize: 14,
+  },
+  levelBadgeText: {
+    ...typography.caption,
     color: colors.primary,
     fontWeight: '600',
+    fontSize: 12,
+  },
+  xpBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.secondaryLight + '20',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 16,
+    gap: spacing.xs,
+  },
+  xpBadgeEmoji: {
+    fontSize: 14,
+  },
+  xpBadgeText: {
+    ...typography.caption,
+    color: colors.secondary,
+    fontWeight: '600',
+    fontSize: 12,
   },
   progressContainer: {
     marginTop: spacing.md,
   },
   progressInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: spacing.sm,
   },
   progressText: {
     ...typography.caption,
     color: colors.textSecondary,
+    fontSize: 11,
   },
   progressBar: {
-    height: 8,
-    borderRadius: 4,
+    height: 6,
+    borderRadius: 3,
   },
   statsCard: {
-    margin: spacing.md,
+    marginHorizontal: spacing.md,
     marginTop: 0,
+    marginBottom: spacing.md,
+    borderRadius: 20,
+    backgroundColor: colors.white,
     elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    overflow: 'hidden',
   },
-  favoriteCard: {
-    margin: spacing.md,
-    marginTop: 0,
-    elevation: 4,
-  },
-  infoCard: {
-    margin: spacing.md,
-    marginTop: 0,
-    elevation: 4,
-  },
-  actionsCard: {
-    margin: spacing.md,
-    marginTop: 0,
-    elevation: 4,
+  statsContent: {
+    padding: spacing.md,
   },
   sectionTitle: {
     ...typography.h4,
     color: colors.text,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: spacing.md,
+    fontSize: 18,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    gap: spacing.xs,
   },
-  statItem: {
+  statItemCompact: {
     width: '48%',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    marginBottom: spacing.md,
-  },
-  statNumber: {
-    ...typography.h2,
-    color: colors.primary,
-    fontWeight: 'bold',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    backgroundColor: colors.lightGray + '40',
+    borderRadius: 16,
     marginBottom: spacing.xs,
+    minHeight: 100,
+    justifyContent: 'center',
   },
-  statLabel: {
+  statIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  statIcon1: {
+    backgroundColor: '#FF6B6B' + '30',
+  },
+  statIcon2: {
+    backgroundColor: '#4ECDC4' + '30',
+  },
+  statIcon3: {
+    backgroundColor: '#FFE66D' + '30',
+  },
+  statIcon4: {
+    backgroundColor: '#95E1D3' + '30',
+  },
+  statIcon: {
+    fontSize: 24,
+  },
+  statNumberCompact: {
+    ...typography.h3,
+    color: colors.text,
+    fontWeight: '800',
+    marginBottom: spacing.xs,
+    fontSize: 20,
+    letterSpacing: -0.5,
+  },
+  statLabelCompact: {
     ...typography.caption,
     color: colors.textSecondary,
     textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  favoriteCard: {
+    marginHorizontal: spacing.md,
+    marginTop: 0,
+    marginBottom: spacing.md,
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    overflow: 'hidden',
+  },
+  favoriteContentCard: {
+    padding: spacing.md,
   },
   favoriteContent: {
     alignItems: 'center',
   },
   favoriteChip: {
-    backgroundColor: colors.primary + '20',
+    backgroundColor: colors.primaryLight + '20',
     borderColor: colors.primary,
+    borderWidth: 1.5,
   },
   favoriteChipText: {
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  infoCard: {
+    marginHorizontal: spacing.md,
+    marginTop: 0,
+    marginBottom: spacing.md,
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    overflow: 'hidden',
+  },
+  actionsCard: {
+    marginHorizontal: spacing.md,
+    marginTop: 0,
+    marginBottom: spacing.md,
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    overflow: 'hidden',
   },
   visibilityChip: {
     alignSelf: 'center',

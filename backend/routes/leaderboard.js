@@ -25,7 +25,7 @@ router.get('/friends', authenticateToken, async (req, res) => {
     }
 
     // Ajouter l'utilisateur actuel à la liste
-    const currentUser = await User.findById(userId).select('username firstName lastName avatar level xp');
+    const currentUser = await User.findById(userId).select('username firstName lastName avatar level xp totalSessionsCompleted');
     const allUsers = [
       {
         _id: currentUser._id,
@@ -35,10 +35,12 @@ router.get('/friends', authenticateToken, async (req, res) => {
         avatar: currentUser.avatar,
         level: currentUser.level,
         xp: currentUser.xp,
+        totalSessionsCompleted: currentUser.totalSessionsCompleted || 0,
         isCurrentUser: true
       },
       ...friends.map(friend => ({
         ...friend,
+        totalSessionsCompleted: friend.totalSessionsCompleted || 0,
         isCurrentUser: false
       }))
     ];
@@ -75,12 +77,13 @@ router.get('/friends', authenticateToken, async (req, res) => {
 
     res.json({
       leaderboard,
-      userPosition,
+      userPosition: userPosition || null,
       totalFriends: friends.length,
       userStats: {
-        level: currentUser.level,
-        xp: currentUser.xp,
-        position: userPosition
+        level: currentUser.level || 1,
+        xp: currentUser.xp || 0,
+        totalSessionsCompleted: currentUser.totalSessionsCompleted || 0,
+        position: userPosition || null
       }
     });
   } catch (error) {
@@ -144,14 +147,17 @@ router.get('/global', authenticateToken, async (req, res) => {
       };
     });
 
+    const totalPublicUsers = await User.countDocuments({ 'settings.isPublic': true });
+    
     res.json({
       leaderboard,
-      userGlobalPosition,
-      totalUsers: await User.countDocuments({ 'settings.isPublic': true }),
+      userPosition: userGlobalPosition || null,
+      totalUsers: totalPublicUsers,
       userStats: {
-        level: currentUser.level,
-        xp: currentUser.xp,
-        position: userGlobalPosition
+        level: currentUser.level || 1,
+        xp: currentUser.xp || 0,
+        totalSessionsCompleted: currentUser.totalSessionsCompleted || 0,
+        position: userGlobalPosition || null
       }
     });
   } catch (error) {

@@ -1,10 +1,16 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
 // Configuration de base de l'API
 const API_BASE_URL = __DEV__ 
   ? 'http://localhost:5001/api' 
-  : 'https://your-production-api.com/api';
+  : 'https://fit-tracker-o7mr.onrender.com/api';
+
+// Secret pour bypasser la protection Vercel
+// À obtenir depuis les paramètres du projet Vercel > Protection > Protection Bypass for Automation
+// Puis ajouter dans app.json > extra > vercelAutomationBypassSecret
+const VERCEL_PROTECTION_BYPASS_SECRET = Constants.expoConfig?.extra?.vercelAutomationBypassSecret || '';
 
 // Créer une instance axios
 const api = axios.create({
@@ -15,7 +21,7 @@ const api = axios.create({
   },
 });
 
-// Intercepteur pour ajouter le token d'authentification
+// Intercepteur pour ajouter le token d'authentification et le bypass Vercel
 api.interceptors.request.use(
   async (config) => {
     try {
@@ -26,6 +32,13 @@ api.interceptors.request.use(
     } catch (error) {
       console.error('Erreur lors de la récupération du token:', error);
     }
+    
+    // Ajouter les en-têtes pour bypasser la protection Vercel
+    if (VERCEL_PROTECTION_BYPASS_SECRET) {
+      config.headers['x-vercel-protection-bypass'] = VERCEL_PROTECTION_BYPASS_SECRET;
+      config.headers['x-vercel-set-bypass-cookie'] = 'true';
+    }
+    
     return config;
   },
   (error) => {
@@ -39,12 +52,31 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
+    // Log détaillé des erreurs en production pour déboguer
+    console.error('❌ Erreur API:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+    });
+
     if (error.response?.status === 401) {
       // Token expiré ou invalide
-      await SecureStore.deleteItemAsync('authToken');
+      try {
+        await SecureStore.deleteItemAsync('authToken');
+      } catch (e) {
+        console.error('Erreur lors de la suppression du token:', e);
+      }
       // Rediriger vers la page de connexion
       // Cette logique sera gérée par le contexte d'authentification
     }
+
+    // Gérer les erreurs réseau
+    if (!error.response && error.message) {
+      console.error('❌ Erreur réseau:', error.message);
+    }
+
     return Promise.reject(error);
   }
 );
@@ -273,6 +305,18 @@ export const sessionService = {
   // Copier une séance
   copySession: async (sessionId) => {
     const response = await api.post(`/sessions/${sessionId}/copy`);
+    return response.data;
+  },
+
+  // Supprimer une séance complétée
+  deleteCompletedSession: async (sessionId, completionId) => {
+    const response = await api.delete(`/sessions/${sessionId}/completions/${completionId}`);
+    return response.data;
+  },
+
+  // Modifier une séance complétée
+  updateCompletedSession: async (sessionId, completionId, data) => {
+    const response = await api.put(`/sessions/${sessionId}/completions/${completionId}`, data);
     return response.data;
   },
 };

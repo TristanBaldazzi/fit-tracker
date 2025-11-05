@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import {
   Card,
@@ -13,16 +14,20 @@ import {
   Chip,
   ActivityIndicator,
   FAB,
+  IconButton,
 } from 'react-native-paper';
 import { Calendar } from 'react-native-calendars';
 import { sessionService } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, typography } from '../../styles/theme';
 
 const CalendarScreen = ({ navigation }) => {
   const [sessions, setSessions] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [markedDates, setMarkedDates] = useState({});
+  const { refreshUser } = useAuth();
 
   useEffect(() => {
     loadCompletedSessions();
@@ -58,6 +63,13 @@ const CalendarScreen = ({ navigation }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadCompletedSessions();
+    await refreshUser(); // Rafraîchir les stats utilisateur
+    setRefreshing(false);
   };
 
   const getSessionColor = (category) => {
@@ -141,13 +153,47 @@ const CalendarScreen = ({ navigation }) => {
     });
   };
 
+  const handleDeleteSession = (session) => {
+    Alert.alert(
+      'Supprimer la séance',
+      `Êtes-vous sûr de vouloir supprimer "${session.name}" ? Cette action mettra à jour vos statistiques.`,
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const completionId = session.completionId || session._id;
+              await sessionService.deleteCompletedSession(session._id, completionId);
+              Alert.alert('Succès', 'Séance supprimée avec succès');
+              await loadCompletedSessions();
+              await refreshUser();
+            } catch (error) {
+              console.error('Erreur suppression:', error);
+              Alert.alert('Erreur', error.response?.data?.message || 'Impossible de supprimer la séance');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEditSession = (session) => {
+    navigation.navigate('EditCompletedSession', {
+      sessionId: session._id,
+      completionId: session.completionId,
+      completedSession: session
+    });
+  };
+
   const renderSession = (session) => (
-    <TouchableOpacity 
-      key={session._id} 
-      onPress={() => handleSessionPress(session)}
-    >
-      <Card style={styles.sessionCard}>
-        <Card.Content>
+    <Card key={session._id || session.completionId} style={styles.sessionCard}>
+      <Card.Content>
+        <TouchableOpacity onPress={() => handleSessionPress(session)}>
           <View style={styles.sessionHeader}>
             <Text style={styles.sessionName}>{session.name}</Text>
             <View style={styles.sessionBadges}>
@@ -196,9 +242,32 @@ const CalendarScreen = ({ navigation }) => {
               💬 {session.notes}
             </Text>
           )}
-        </Card.Content>
-      </Card>
-    </TouchableOpacity>
+        </TouchableOpacity>
+        
+        {/* Boutons d'action */}
+        <View style={styles.sessionActions}>
+          <Button
+            mode="outlined"
+            onPress={() => handleEditSession(session)}
+            icon="pencil"
+            compact
+            style={styles.editButton}
+          >
+            Modifier
+          </Button>
+          <Button
+            mode="outlined"
+            onPress={() => handleDeleteSession(session)}
+            icon="delete"
+            textColor={colors.error}
+            compact
+            style={styles.deleteButton}
+          >
+            Supprimer
+          </Button>
+        </View>
+      </Card.Content>
+    </Card>
   );
 
   const renderEmptyState = () => (
@@ -231,7 +300,12 @@ const CalendarScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Calendrier */}
         <Card style={styles.calendarCard}>
           <Card.Content>
@@ -466,6 +540,18 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: spacing.xl,
+  },
+  sessionActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  editButton: {
+    flex: 1,
+  },
+  deleteButton: {
+    flex: 1,
   },
 });
 

@@ -1,0 +1,16 @@
+FitTrack - Votre coach fitness personnel
+
+🏋️ Suivez vos séances d'entraînement en détail avec FitTrack ! Créez et gérez vos exercices, suivez vos progrès avec un système de niveaux et d'XP, et partagez vos séances avec vos amis.
+
+✨ Fonctionnalités principales :
+• Création de séances personnalisées avec exercices détaillés
+• Système de progression avec niveaux et XP
+• Suivi de vos performances (poids, répétitions, durée)
+• Classement et comparaison avec vos amis
+• Gestion de programmes d'entraînement
+• Authentification sécurisée avec Apple Sign-In
+
+Cette version beta vous permet de tester toutes les fonctionnalités de FitTrack avant la sortie officielle. Vos retours sont les bienvenus !
+
+🙏 Merci de tester l'application et de nous faire part de vos remarques pour améliorer l'expérience utilisateur.
+

@@ -84,11 +84,36 @@ const CreateSessionScreen = ({ navigation }) => {
   const loadExercises = async () => {
     try {
       setIsLoadingExercises(true);
+      console.log('🏋️ [CreateSession] Chargement des exercices...');
       const response = await exerciseService.getExercises();
-      setAvailableExercises(response.exercises);
-      setFilteredExercises(response.exercises);
+      console.log('🏋️ [CreateSession] Réponse reçue:', {
+        hasResponse: !!response,
+        hasExercises: !!response?.exercises,
+        exercisesCount: response?.exercises?.length || 0
+      });
+      
+      if (response && response.exercises) {
+        console.log('✅ [CreateSession]', response.exercises.length, 'exercices chargés');
+        setAvailableExercises(response.exercises);
+        setFilteredExercises(response.exercises);
+      } else {
+        console.warn('⚠️ [CreateSession] Aucun exercice dans la réponse');
+        setAvailableExercises([]);
+        setFilteredExercises([]);
+      }
     } catch (error) {
-      console.error('Erreur lors du chargement des exercices:', error);
+      console.error('❌ [CreateSession] Erreur lors du chargement des exercices:', error);
+      console.error('Erreur détails:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      Alert.alert(
+        'Erreur',
+        'Impossible de charger les exercices. Veuillez réessayer.'
+      );
+      setAvailableExercises([]);
+      setFilteredExercises([]);
     } finally {
       setIsLoadingExercises(false);
     }
@@ -471,8 +496,19 @@ const CreateSessionScreen = ({ navigation }) => {
                 ) : (
                   <View style={styles.noResultsContainer}>
                     <Text style={styles.noResultsText}>
-                      Aucun exercice trouvé pour "{searchQuery}"
+                      {searchQuery.trim() || selectedCategory
+                        ? `Aucun exercice trouvé${searchQuery.trim() ? ` pour "${searchQuery}"` : ''}${selectedCategory ? ` dans la catégorie "${selectedCategory}"` : ''}`
+                        : 'Aucun exercice disponible. Veuillez réessayer dans quelques instants.'}
                     </Text>
+                    {!searchQuery.trim() && !selectedCategory && (
+                      <Button
+                        mode="outlined"
+                        onPress={loadExercises}
+                        style={{ marginTop: spacing.md }}
+                      >
+                        Recharger les exercices
+                      </Button>
+                    )}
                   </View>
                 )}
               </ScrollView>

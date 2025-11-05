@@ -1,0 +1,26 @@
+Points importants à tester dans cette version beta :
+
+🔐 Authentification
+• Connexion avec Apple Sign-In (première fois et connexions suivantes)
+• Vérification que l'email est automatiquement vérifié après connexion Apple
+• Inscription et connexion avec email/mot de passe
+
+👤 Profil utilisateur
+• Modification du prénom et nom (disponible à tout moment)
+• Changement du nom d'utilisateur (limité à 1 fois tous les 7 jours)
+• Vérification de l'unicité du nom d'utilisateur
+
+📊 Fonctionnalités principales
+• Création et modification de séances d'entraînement
+• Ajout d'exercices et suivi des performances
+• Système de progression (niveaux et XP)
+• Classement avec les amis
+
+⚠️ Points d'attention
+• Vérifier que les données se sauvegardent correctement
+• Tester la navigation entre les écrans
+• Vérifier la synchronisation des données entre app et serveur
+• Signaler tout bug ou comportement inattendu
+
+Merci de tester en conditions réelles et de nous faire part de vos retours ! 🙏
+

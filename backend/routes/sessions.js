@@ -834,6 +834,7 @@ router.post('/:id/complete', authenticateToken, async (req, res) => {
       notes: '',
       exercises: exercises.map(exercise => ({
         name: exercise.name,
+        category: exercise.category || 'Mixte', // Inclure la catégorie
         sets: exercise.sets.map(set => ({
           reps: set.reps,
           weight: set.weight,
@@ -977,6 +978,296 @@ router.post('/:id/complete', authenticateToken, async (req, res) => {
     console.error('❌ ERREUR completion session:', error);
     res.status(500).json({
       message: 'Erreur lors de la finalisation de la session'
+    });
+  }
+});
+
+// DELETE /api/sessions/:sessionId/completions/:completionId - Supprimer une completion
+router.delete('/:sessionId/completions/:completionId', authenticateToken, async (req, res) => {
+  try {
+    const { sessionId, completionId } = req.params;
+    const userId = req.user._id;
+
+    console.log('🗑️ [Delete Completion] Suppression completion:', { sessionId, completionId, userId });
+
+    // Trouver la séance avec la completion
+    const session = await Session.findOne({
+      _id: sessionId,
+      'completions._id': completionId,
+      'completions.user': userId
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        message: 'Completion non trouvée ou accès non autorisé'
+      });
+    }
+
+    // Trouver la completion spécifique
+    const completion = session.completions.find(c => 
+      c._id.toString() === completionId && c.user.toString() === userId.toString()
+    );
+
+    if (!completion) {
+      return res.status(404).json({
+        message: 'Completion non trouvée'
+      });
+    }
+
+    // Calculer les valeurs à retirer des stats
+    const xpToRemove = completion.exercises ? 
+      completion.exercises.reduce((total, exercise) => 
+        total + (exercise.sets ? exercise.sets.filter(set => set.completed).length : 0), 0
+      ) * 10 : 0;
+
+    const weightToRemove = completion.exercises ? 
+      completion.exercises.reduce((total, exercise) => {
+        const exerciseWeight = exercise.sets ? exercise.sets.reduce((setTotal, set) => {
+          if (set.completed && set.weight && set.reps) {
+            return setTotal + (set.weight * set.reps);
+          }
+          return setTotal;
+        }, 0) : 0;
+        return total + exerciseWeight;
+      }, 0) : 0;
+
+    const durationToRemove = completion.actualDuration || 0;
+
+    console.log('📊 [Delete Completion] Valeurs à retirer:', {
+      xp: xpToRemove,
+      weight: weightToRemove,
+      duration: durationToRemove
+    });
+
+    // Retirer la completion de la séance
+    session.completions = session.completions.filter(c => c._id.toString() !== completionId);
+    await session.save();
+
+    // Mettre à jour les stats de l'utilisateur
+    const User = require('../models/User');
+    const user = await User.findById(userId);
+
+    if (user) {
+      // Retirer l'XP
+      user.xp = Math.max(0, user.xp - xpToRemove);
+      
+      // Recalculer le niveau
+      const newLevel = user.calculateLevel();
+      user.level = newLevel;
+
+      // Décrémenter les sessions complétées
+      user.totalSessionsCompleted = Math.max(0, user.totalSessionsCompleted - 1);
+
+      // Retirer la durée et le poids
+      if (durationToRemove > 0) {
+        user.stats.totalWorkoutTime = Math.max(0, (user.stats.totalWorkoutTime || 0) - durationToRemove);
+      }
+
+      if (weightToRemove > 0) {
+        user.stats.totalWeightLifted = Math.max(0, (user.stats.totalWeightLifted || 0) - weightToRemove);
+      }
+
+      await user.save();
+
+      console.log('✅ [Delete Completion] Stats utilisateur mises à jour:', {
+        xp: user.xp,
+        level: user.level,
+        totalSessionsCompleted: user.totalSessionsCompleted,
+        totalWorkoutTime: user.stats.totalWorkoutTime,
+        totalWeightLifted: user.stats.totalWeightLifted
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Completion supprimée avec succès',
+      statsUpdated: {
+        xpRemoved: xpToRemove,
+        weightRemoved: weightToRemove,
+        durationRemoved: durationToRemove
+      }
+    });
+  } catch (error) {
+    console.error('❌ Erreur suppression completion:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la suppression de la completion'
+    });
+  }
+});
+
+// PUT /api/sessions/:sessionId/completions/:completionId - Modifier une completion
+router.put('/:sessionId/completions/:completionId', authenticateToken, [
+  body('actualDuration').optional().isInt({ min: 0 }),
+  body('notes').optional().trim(),
+  body('exercises').optional().isArray()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        message: 'Données invalides',
+        errors: errors.array()
+      });
+    }
+
+    const { sessionId, completionId } = req.params;
+    const userId = req.user._id;
+    const { actualDuration, notes, exercises } = req.body;
+
+    console.log('✏️ [Update Completion] Modification completion:', { sessionId, completionId, userId });
+
+    // Trouver la séance avec la completion
+    const session = await Session.findOne({
+      _id: sessionId,
+      'completions._id': completionId,
+      'completions.user': userId
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        message: 'Completion non trouvée ou accès non autorisé'
+      });
+    }
+
+    // Trouver la completion spécifique
+    const completionIndex = session.completions.findIndex(c => 
+      c._id.toString() === completionId && c.user.toString() === userId.toString()
+    );
+
+    if (completionIndex === -1) {
+      return res.status(404).json({
+        message: 'Completion non trouvée'
+      });
+    }
+
+    const oldCompletion = session.completions[completionIndex];
+
+    // Calculer les anciennes valeurs pour les retirer des stats
+    const oldXP = oldCompletion.exercises ? 
+      oldCompletion.exercises.reduce((total, exercise) => 
+        total + (exercise.sets ? exercise.sets.filter(set => set.completed).length : 0), 0
+      ) * 10 : 0;
+
+    const oldWeight = oldCompletion.exercises ? 
+      oldCompletion.exercises.reduce((total, exercise) => {
+        const exerciseWeight = exercise.sets ? exercise.sets.reduce((setTotal, set) => {
+          if (set.completed && set.weight && set.reps) {
+            return setTotal + (set.weight * set.reps);
+          }
+          return setTotal;
+        }, 0) : 0;
+        return total + exerciseWeight;
+      }, 0) : 0;
+
+    const oldDuration = oldCompletion.actualDuration || 0;
+
+    // Mettre à jour la completion
+    if (actualDuration !== undefined) {
+      session.completions[completionIndex].actualDuration = actualDuration;
+    }
+    if (notes !== undefined) {
+      session.completions[completionIndex].notes = notes;
+    }
+    if (exercises !== undefined) {
+      session.completions[completionIndex].exercises = exercises.map(exercise => ({
+        name: exercise.name,
+        category: exercise.category || 'Mixte', // Inclure la catégorie
+        sets: exercise.sets.map(set => ({
+          reps: set.reps,
+          weight: set.weight,
+          duration: set.duration || 0,
+          distance: set.distance || 0,
+          completed: set.completed
+        }))
+      }));
+    }
+
+    await session.save();
+
+    // Recharger la session pour obtenir les données réellement sauvegardées
+    const updatedSessionForStats = await Session.findById(sessionId);
+    const updatedCompletion = updatedSessionForStats.completions.find(c => 
+      c._id.toString() === completionId
+    );
+
+    // Calculer les nouvelles valeurs à partir de la completion mise à jour
+    const newExercises = updatedCompletion.exercises || [];
+    const newXP = newExercises.reduce((total, exercise) => 
+      total + (exercise.sets ? exercise.sets.filter(set => set.completed).length : 0), 0
+    ) * 10;
+
+    const newWeight = newExercises.reduce((total, exercise) => {
+      const exerciseWeight = exercise.sets ? exercise.sets.reduce((setTotal, set) => {
+        if (set.completed && set.weight && set.reps) {
+          return setTotal + (set.weight * set.reps);
+        }
+        return setTotal;
+      }, 0) : 0;
+      return total + exerciseWeight;
+    }, 0);
+
+    const newDuration = updatedCompletion.actualDuration || 0;
+
+    // Calculer les différences
+    const xpDiff = newXP - oldXP;
+    const weightDiff = newWeight - oldWeight;
+    const durationDiff = newDuration - oldDuration;
+
+    console.log('📊 [Update Completion] Différences:', {
+      xpDiff,
+      weightDiff,
+      durationDiff
+    });
+
+    // Mettre à jour les stats de l'utilisateur
+    const User = require('../models/User');
+    const user = await User.findById(userId);
+
+    if (user) {
+      // Ajuster l'XP
+      user.xp = Math.max(0, user.xp + xpDiff);
+      
+      // Recalculer le niveau
+      const newLevel = user.calculateLevel();
+      user.level = newLevel;
+
+      // Ajuster la durée et le poids
+      if (durationDiff !== 0) {
+        user.stats.totalWorkoutTime = Math.max(0, (user.stats.totalWorkoutTime || 0) + durationDiff);
+      }
+
+      if (weightDiff !== 0) {
+        user.stats.totalWeightLifted = Math.max(0, (user.stats.totalWeightLifted || 0) + weightDiff);
+      }
+
+      await user.save();
+
+      console.log('✅ [Update Completion] Stats utilisateur mises à jour:', {
+        xp: user.xp,
+        level: user.level,
+        totalWorkoutTime: user.stats.totalWorkoutTime,
+        totalWeightLifted: user.stats.totalWeightLifted
+      });
+    }
+
+    // Récupérer la séance mise à jour
+    const updatedSession = await Session.findById(sessionId)
+      .populate('creator', 'username firstName lastName avatar level');
+
+    res.json({
+      success: true,
+      message: 'Completion modifiée avec succès',
+      session: updatedSession,
+      statsUpdated: {
+        xpDiff,
+        weightDiff,
+        durationDiff
+      }
+    });
+  } catch (error) {
+    console.error('❌ Erreur modification completion:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la modification de la completion'
     });
   }
 });

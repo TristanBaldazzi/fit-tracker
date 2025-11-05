@@ -4,10 +4,37 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
 import { authService } from '../services/api';
 
-const AuthContext = createContext({});
+// S'assurer que React est disponible depuis global si nécessaire
+if (typeof global !== 'undefined' && !global.React) {
+  global.React = React;
+}
+
+// Vérification critique
+if (!React) {
+  console.error('❌ [AuthContext] React est null');
+  throw new Error('React is not loaded in AuthContext');
+}
+
+// Vérifier que useState est disponible - utiliser React.useState si useState importé n'est pas disponible
+const finalUseState = useState || React?.useState;
+const finalUseEffect = useEffect || React?.useEffect;
+const finalCreateContext = createContext || React?.createContext;
+const finalUseContext = useContext || React?.useContext;
+
+if (!finalUseState) {
+  console.error('❌ [AuthContext] useState et React.useState sont null');
+  console.error('❌ [AuthContext] React keys:', Object.keys(React || {}));
+  throw new Error('useState is not available. React keys: ' + Object.keys(React || {}).join(', '));
+}
+
+console.log('✅ [AuthContext] React disponible:', !!React);
+console.log('✅ [AuthContext] useState disponible:', !!finalUseState);
+console.log('✅ [AuthContext] React.useState disponible:', !!React?.useState);
+
+const AuthContext = finalCreateContext({});
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
+  const context = finalUseContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
@@ -15,13 +42,27 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [token, setToken] = useState(null);
+  console.log('🔍 [AuthProvider] Début du composant');
+  console.log('🔍 [AuthProvider] React:', React);
+  console.log('🔍 [AuthProvider] finalUseState disponible:', !!finalUseState);
+  console.log('🔍 [AuthProvider] React.useState disponible:', !!React?.useState);
+  
+  // UTILISER finalUseState au lieu de useState directement
+  console.log('🔍 [AuthProvider] Tentative d\'utilisation de finalUseState...');
+  const [user, setUser] = finalUseState(null);
+  console.log('✅ [AuthProvider] finalUseState(user) réussi');
+  
+  const [isAuthenticated, setIsAuthenticated] = finalUseState(false);
+  console.log('✅ [AuthProvider] finalUseState(isAuthenticated) réussi');
+  
+  const [isLoading, setIsLoading] = finalUseState(true);
+  console.log('✅ [AuthProvider] finalUseState(isLoading) réussi');
+  
+  const [token, setToken] = finalUseState(null);
+  console.log('✅ [AuthProvider] finalUseState(token) réussi');
 
   // Vérifier si l'utilisateur est connecté au démarrage
-  useEffect(() => {
+  finalUseEffect(() => {
     checkAuthState();
   }, []);
 
@@ -44,7 +85,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (credentials) => {
+    const login = async (credentials) => {
     try {
       setIsLoading(true);
       const response = await authService.login(credentials);
@@ -67,7 +108,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (userData) => {
+    const register = async (userData) => {
     try {
       setIsLoading(true);
       const response = await authService.register(userData);
@@ -90,7 +131,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithApple = async () => {
+    const loginWithApple = async () => {
     try {
       if (Platform.OS !== 'ios') {
         return { success: false, error: 'Apple Sign-In n\'est disponible que sur iOS' };
@@ -112,13 +153,39 @@ export const AuthProvider = ({ children }) => {
         ],
       });
 
+      // Logger toutes les données reçues d'Apple pour debug
+      console.log('📱 [Apple Sign-In] Credential complet:', {
+        user: credential.user,
+        email: credential.email,
+        fullName: credential.fullName,
+        identityToken: credential.identityToken ? 'présent' : 'absent',
+        authorizationCode: credential.authorizationCode ? 'présent' : 'absent',
+        realUserStatus: credential.realUserStatus,
+      });
+
       // Préparer les données pour l'API
+      // Apple peut ne pas renvoyer fullName lors des connexions suivantes
+      // On envoie null si les données ne sont pas disponibles (pas de valeurs par défaut)
+      const firstName = credential.fullName?.givenName?.trim() || null;
+      const lastName = credential.fullName?.familyName?.trim() || null;
+      const email = credential.email || null;
+
       const appleData = {
         appleId: credential.user,
-        firstName: credential.fullName?.givenName || 'Utilisateur',
-        lastName: credential.fullName?.familyName || 'Apple',
-        email: credential.email || null,
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        // Envoyer l'identityToken au backend pour qu'il puisse extraire l'email si nécessaire
+        identityToken: credential.identityToken || null,
       };
+      
+      console.log('📱 [Apple Sign-In] Données envoyées au backend:', {
+        appleId: appleData.appleId,
+        firstName: appleData.firstName || 'null',
+        lastName: appleData.lastName || 'null',
+        email: appleData.email || 'null',
+        identityToken: appleData.identityToken ? 'présent' : 'absent',
+      });
 
       const response = await authService.loginWithApple(appleData);
       
@@ -145,7 +212,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = async () => {
+    const logout = async () => {
     try {
       // Appeler l'API de déconnexion
       await authService.logout();
@@ -160,11 +227,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const updateUser = (userData) => {
+    const updateUser = (userData) => {
     setUser(prevUser => ({ ...prevUser, ...userData }));
   };
 
-  const refreshUser = async () => {
+    const refreshUser = async () => {
     try {
       const userData = await authService.getMe();
       setUser(userData.user);
@@ -186,6 +253,7 @@ export const AuthProvider = ({ children }) => {
     refreshUser,
   };
 
+  console.log('✅ [AuthProvider] Composant initialisé avec succès');
   return (
     <AuthContext.Provider value={value}>
       {children}

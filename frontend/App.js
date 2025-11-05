@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { Component } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 
 // Import des écrans
@@ -26,6 +28,7 @@ import SessionDetailScreen from './src/screens/sessions/SessionDetailScreen';
 import SessionInProgressScreen from './src/screens/sessions/SessionInProgressScreen';
 import SessionHistoryScreen from './src/screens/sessions/SessionHistoryScreen';
 import SessionHistoryDetailScreen from './src/screens/sessions/SessionHistoryDetailScreen';
+import EditCompletedSessionScreen from './src/screens/sessions/EditCompletedSessionScreen';
 import CreateExerciseScreen from './src/screens/exercises/CreateExerciseScreen';
 import EditExerciseScreen from './src/screens/exercises/EditExerciseScreen';
 import UserProfileScreen from './src/screens/friends/UserProfileScreen';
@@ -44,6 +47,8 @@ const Tab = createBottomTabNavigator();
 
 // Navigation principale avec onglets
 function MainTabNavigator() {
+  const insets = useSafeAreaInsets();
+  
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -64,20 +69,48 @@ function MainTabNavigator() {
             iconName = focused ? 'person' : 'person-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return <Ionicons name={iconName} size={24} color={color} />;
         },
         tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: 'gray',
+        tabBarInactiveTintColor: '#8E8E93',
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 4,
+          marginBottom: 0,
+          letterSpacing: 0.2,
+        },
+        tabBarIconStyle: {
+          marginTop: 2,
+          marginBottom: 0,
+        },
         tabBarStyle: {
-          backgroundColor: 'white',
-          borderTopWidth: 1,
-          borderTopColor: '#e0e0e0',
-          paddingBottom: 5,
-          paddingTop: 5,
-          height: 60,
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 0.5,
+          borderTopColor: '#E5E5EA',
+          elevation: 10,
+          shadowColor: '#000',
+          shadowOffset: {
+            width: 0,
+            height: -3,
+          },
+          shadowOpacity: 0.12,
+          shadowRadius: 8,
+          paddingBottom: Math.max(insets.bottom, 10),
+          paddingTop: 10,
+          height: Platform.OS === 'ios' ? 60 + Math.max(insets.bottom, 10) : 60,
+          minHeight: 60,
         },
         headerStyle: {
           backgroundColor: theme.colors.primary,
+          elevation: 4,
+          shadowColor: '#000',
+          shadowOffset: {
+            width: 0,
+            height: 2,
+          },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
         },
         headerTintColor: 'white',
         headerTitleStyle: {
@@ -225,7 +258,7 @@ function AppNavigator() {
             }}
           />
           <Stack.Screen 
-            name="SessionHistoryDetail" 
+            name="SessionHistoryDetail"
             component={SessionHistoryDetailScreen} 
             options={{ 
               title: 'Détails Séance',
@@ -233,7 +266,15 @@ function AppNavigator() {
             }}
           />
           <Stack.Screen 
-            name="CreateExercise" 
+            name="EditCompletedSession"
+            component={EditCompletedSessionScreen} 
+            options={{ 
+              title: 'Modifier Séance',
+              headerBackTitle: 'Retour'
+            }}
+          />
+          <Stack.Screen 
+            name="CreateExercise"
             component={CreateExerciseScreen} 
             options={{ 
               title: 'Nouvel Exercice',
@@ -316,16 +357,152 @@ function AppNavigator() {
   );
 }
 
+// Error Boundary pour capturer les erreurs React
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('❌ Erreur capturée par ErrorBoundary:', error);
+    console.error('❌ Message:', error.message);
+    console.error('❌ Stack:', error.stack);
+    console.error('❌ Info erreur:', errorInfo);
+    console.error('❌ ComponentStack:', errorInfo.componentStack);
+    this.setState({ errorInfo });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Oups ! Une erreur est survenue</Text>
+          <Text style={styles.errorText}>
+            {this.state.error?.message || 'Erreur inconnue'}
+          </Text>
+          <Text style={styles.errorText}>
+            {this.state.error?.stack?.split('\n').slice(0, 5).join('\n')}
+          </Text>
+          {this.state.errorInfo && (
+            <Text style={styles.errorDetails}>
+              {JSON.stringify(this.state.errorInfo, null, 2)}
+            </Text>
+          )}
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => this.setState({ hasError: false, error: null, errorInfo: null })}
+          >
+            <Text style={styles.buttonText}>Réessayer</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Wrapper pour PaperProvider qui s'assure que React est disponible
+function SafePaperProvider({ children, theme }) {
+  // S'assurer que React est disponible avant d'utiliser PaperProvider
+  if (!React || !React.useState) {
+    console.error('❌ [SafePaperProvider] React ou React.useState est null');
+    throw new Error('React is not available in SafePaperProvider');
+  }
+  
+  // S'assurer que React est disponible globalement pour PaperProvider
+  if (typeof global !== 'undefined') {
+    global.React = React;
+  }
+  
+  console.log('✅ [SafePaperProvider] React disponible, rendu de PaperProvider');
+  return <PaperProvider theme={theme}>{children}</PaperProvider>;
+}
+
 // Composant principal de l'application
 export default function App() {
+  // S'assurer que React est disponible globalement AVANT tout rendu
+  if (typeof global !== 'undefined') {
+    global.React = React;
+  }
+  
+  // Logs détaillés avant l'utilisation de PaperProvider
+  console.log('🔍 [App] Début du composant App');
+  console.log('🔍 [App] React:', React);
+  console.log('🔍 [App] React.useState:', React?.useState);
+  console.log('🔍 [App] React.version:', React?.version);
+  console.log('🔍 [App] PaperProvider:', PaperProvider);
+  
+  if (!React) {
+    console.error('❌ [App] React est null avant PaperProvider');
+    throw new Error('React is null in App component');
+  }
+  
+  if (!React.useState) {
+    console.error('❌ [App] React.useState est null avant PaperProvider');
+    console.error('❌ [App] React keys:', Object.keys(React || {}));
+    throw new Error('React.useState is null in App component');
+  }
+  
   return (
-    <PaperProvider theme={theme}>
-      <AuthProvider>
-        <NavigationContainer>
-          <AppNavigator />
-        </NavigationContainer>
-        <StatusBar style="light" />
-      </AuthProvider>
-    </PaperProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <SafePaperProvider theme={theme}>
+          <AuthProvider>
+            <NavigationContainer>
+              <AppNavigator />
+            </NavigationContainer>
+            <StatusBar style="light" />
+          </AuthProvider>
+        </SafePaperProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
+
+const styles = StyleSheet.create({
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  errorDetails: {
+    fontSize: 10,
+    color: '#999',
+    textAlign: 'left',
+    marginTop: 10,
+    marginBottom: 20,
+    padding: 10,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 5,
+  },
+  button: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+});

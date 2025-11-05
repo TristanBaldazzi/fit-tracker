@@ -28,6 +28,7 @@ const SettingsScreen = ({ navigation }) => {
   const { user, logout, updateUser, refreshUser } = useAuth();
   const [notifications, setNotifications] = useState(user?.settings?.notifications ?? true);
   const [isPublic, setIsPublic] = useState(user?.settings?.isPublic ?? true);
+  const [isUpdatingPublic, setIsUpdatingPublic] = useState(false);
   const [emailStatus, setEmailStatus] = useState(null);
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
   
@@ -106,6 +107,13 @@ const SettingsScreen = ({ navigation }) => {
     }
   }, [user]);
 
+  // Synchroniser isPublic avec les données utilisateur
+  React.useEffect(() => {
+    if (user?.settings?.isPublic !== undefined) {
+      setIsPublic(user.settings.isPublic);
+    }
+  }, [user?.settings?.isPublic]);
+
   const handleNotificationToggle = async (value) => {
     setNotifications(value);
     try {
@@ -119,17 +127,28 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   const handlePublicToggle = async (value) => {
-    console.log('Changement de visibilité:', value);
+    setIsUpdatingPublic(true);
     setIsPublic(value);
     try {
       // Mettre à jour les paramètres sur le serveur
-      console.log('Envoi de la requête API...');
       const result = await userService.updateSettings({ isPublic: value });
-      console.log('Réponse API:', result);
+      await refreshUser(); // Rafraîchir les données utilisateur
       updateUser({ settings: { ...user.settings, isPublic: value } });
+      Alert.alert(
+        'Succès',
+        value 
+          ? 'Votre profil est maintenant public. Les autres utilisateurs peuvent vous voir.'
+          : 'Votre profil est maintenant privé. Seuls vos amis peuvent vous voir.'
+      );
     } catch (error) {
       console.error('Erreur lors de la mise à jour de la visibilité:', error);
       setIsPublic(!value); // Revenir à l'état précédent
+      Alert.alert(
+        'Erreur',
+        'Impossible de mettre à jour le statut de votre profil. Veuillez réessayer.'
+      );
+    } finally {
+      setIsUpdatingPublic(false);
     }
   };
 
@@ -340,14 +359,26 @@ const SettingsScreen = ({ navigation }) => {
           
           <List.Item
             title="Profil public"
-            description="Permettre aux autres utilisateurs de voir votre profil"
-            left={(props) => <List.Icon {...props} icon="account" />}
+            description={isPublic 
+              ? "Votre profil est visible par tous les utilisateurs" 
+              : "Seuls vos amis peuvent voir votre profil"}
+            left={(props) => <List.Icon {...props} icon={isPublic ? "account" : "account-lock"} />}
             right={() => (
-              <Switch
-                value={isPublic}
-                onValueChange={handlePublicToggle}
-                color={colors.primary}
-              />
+              <View style={styles.switchContainer}>
+                {isUpdatingPublic && (
+                  <ActivityIndicator 
+                    size="small" 
+                    color={colors.primary} 
+                    style={styles.switchLoader}
+                  />
+                )}
+                <Switch
+                  value={isPublic}
+                  onValueChange={handlePublicToggle}
+                  disabled={isUpdatingPublic}
+                  color={colors.primary}
+                />
+              </View>
             )}
           />
           
@@ -745,6 +776,14 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  switchLoader: {
+    marginRight: spacing.xs,
   },
 });
 

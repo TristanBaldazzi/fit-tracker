@@ -176,6 +176,8 @@ const LeaderboardScreen = ({ navigation }) => {
   const renderUserStats = () => {
     if (!userStats) return null;
     
+    const position = userPosition || userStats.position || null;
+    
     return (
       <Card style={styles.userStatsCard}>
         <Card.Content>
@@ -183,25 +185,25 @@ const LeaderboardScreen = ({ navigation }) => {
           <View style={styles.userStatsContent}>
             <View style={styles.userStatItem}>
               <Text style={styles.userStatNumber}>
-                {userPosition || 'N/A'}
+                {position ? `#${position}` : 'N/A'}
               </Text>
               <Text style={styles.userStatLabel}>Position</Text>
             </View>
             <View style={styles.userStatItem}>
               <Text style={styles.userStatNumber}>
-                {userStats.level}
+                {userStats.level || 1}
               </Text>
               <Text style={styles.userStatLabel}>Niveau</Text>
             </View>
             <View style={styles.userStatItem}>
               <Text style={styles.userStatNumber}>
-                {userStats.xp}
+                {userStats.xp || 0}
               </Text>
               <Text style={styles.userStatLabel}>XP</Text>
             </View>
             <View style={styles.userStatItem}>
               <Text style={styles.userStatNumber}>
-                {userStats.totalSessionsCompleted}
+                {userStats.totalSessionsCompleted || 0}
               </Text>
               <Text style={styles.userStatLabel}>Séances</Text>
             </View>
