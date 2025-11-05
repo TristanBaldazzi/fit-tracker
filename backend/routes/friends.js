@@ -94,21 +94,16 @@ router.post('/request', authenticateToken, [
     const requester = await User.findById(requesterId)
       .select('username firstName lastName avatar');
     
-    // Envoyer une notification push si le destinataire a un token et les notifications activées
-    console.log('🔔 [Friend Request] Vérification des conditions pour notification push...');
-    console.log('🔔 [Friend Request] Recipient pushToken:', recipient.pushToken ? `${recipient.pushToken.substring(0, 30)}...` : 'null');
-    console.log('🔔 [Friend Request] Recipient notifications enabled:', recipient.settings?.notifications);
+    // Vérifier les conditions pour envoyer la notification push
+    console.log('🔔 [Friend Request] Vérification des conditions pour la notification push...');
+    console.log('🔔 [Friend Request] Recipient ID:', recipientId);
+    console.log('🔔 [Friend Request] Recipient pushToken:', recipient.pushToken ? recipient.pushToken.substring(0, 30) + '...' : 'NULL');
+    console.log('🔔 [Friend Request] Recipient notifications setting:', recipient.settings?.notifications);
     
+    // Envoyer une notification push si le destinataire a un token et les notifications activées
     if (recipient.pushToken && recipient.settings?.notifications) {
+      console.log('✅ [Friend Request] Conditions remplies - Envoi de la notification push...');
       try {
-        console.log('🔔 [Friend Request] Envoi de la notification push...');
-        console.log('🔔 [Friend Request] Token destinataire:', recipient.pushToken);
-        console.log('🔔 [Friend Request] Informations demandeur:', {
-          firstName: requester.firstName,
-          lastName: requester.lastName,
-          username: requester.username
-        });
-        
         const notificationResult = await pushNotificationService.sendFriendRequestNotification(
           recipient.pushToken,
           {
@@ -120,12 +115,12 @@ router.post('/request', authenticateToken, [
           }
         );
         
-        console.log('🔔 [Friend Request] Résultat envoi notification:', notificationResult);
+        console.log('📱 [Friend Request] Résultat de l\'envoi de notification:', notificationResult);
         
         if (notificationResult.success) {
           console.log('✅ [Friend Request] Notification push envoyée avec succès pour la demande d\'amitié');
         } else {
-          console.error('❌ [Friend Request] Échec envoi notification:', notificationResult.error);
+          console.error('❌ [Friend Request] Échec de l\'envoi de la notification push:', notificationResult.error);
         }
       } catch (error) {
         console.error('❌ [Friend Request] Erreur lors de l\'envoi de la notification push:', error);
@@ -133,9 +128,9 @@ router.post('/request', authenticateToken, [
         // Ne pas faire échouer la requête si la notification échoue
       }
     } else {
-      console.warn('⚠️ [Friend Request] Notification push non envoyée - conditions non remplies:');
-      console.warn('   - pushToken:', recipient.pushToken ? 'présent' : 'absent');
-      console.warn('   - notifications:', recipient.settings?.notifications ? 'activées' : 'désactivées');
+      console.warn('⚠️ [Friend Request] Notification push non envoyée - Conditions non remplies:');
+      console.warn('   - pushToken présent:', !!recipient.pushToken);
+      console.warn('   - notifications activées:', recipient.settings?.notifications);
     }
     
     res.status(201).json({

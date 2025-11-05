@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tristanbaldazzi.fittracker",
-      "buildNumber": "18",
+      "buildNumber": "19",
       "infoPlist": {
         "NSAppleMusicUsageDescription": "Cette application n'utilise pas Apple Music.",
         "NSHealthShareUsageDescription": "FitTrack a besoin d'accéder à vos données de santé (comme les pas, les exercices et l'activité physique) pour suivre vos progrès et vous aider à atteindre vos objectifs de fitness.",

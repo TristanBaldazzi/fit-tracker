@@ -13,14 +13,22 @@ class PushNotificationService {
    */
   async sendPushNotification(pushTokens, title, body, data = {}) {
     try {
+      console.log('📤 [Push Service] Début de l\'envoi de notification push');
+      console.log('📤 [Push Service] Tokens reçus:', pushTokens);
+      console.log('📤 [Push Service] Titre:', title);
+      console.log('📤 [Push Service] Corps:', body);
+      console.log('📤 [Push Service] Données:', data);
+      
       // S'assurer que pushTokens est un tableau
       const tokens = Array.isArray(pushTokens) ? pushTokens : [pushTokens];
       
       // Filtrer les tokens null/undefined
       const validTokens = tokens.filter(token => token && typeof token === 'string');
       
+      console.log('📤 [Push Service] Tokens valides:', validTokens.length);
+      
       if (validTokens.length === 0) {
-        console.warn('Aucun token de notification valide fourni');
+        console.warn('⚠️ [Push Service] Aucun token de notification valide fourni');
         return { success: false, error: 'Aucun token valide' };
       }
 
@@ -38,6 +46,9 @@ class PushNotificationService {
         channelId: 'default',
       }));
 
+      console.log('📤 [Push Service] Messages préparés:', JSON.stringify(messages, null, 2));
+      console.log('📤 [Push Service] Envoi à l\'API Expo...');
+
       // Envoyer les notifications via l'API Expo
       const response = await axios.post(
         'https://exp.host/--/api/v2/push/send',
@@ -51,21 +62,40 @@ class PushNotificationService {
         }
       );
 
-      console.log('Notifications push envoyées:', response.data);
+      console.log('📱 [Push Service] Réponse de l\'API Expo:', JSON.stringify(response.data, null, 2));
+      
+      // La réponse de l'API Expo est un tableau directement ou un objet avec une propriété data
+      const results = Array.isArray(response.data) ? response.data : (response.data?.data || [response.data]);
+      
+      console.log('📱 [Push Service] Résultats parsés:', JSON.stringify(results, null, 2));
       
       // Vérifier s'il y a des erreurs dans la réponse
-      const hasErrors = response.data.some(result => 
+      const hasErrors = results.some(result => 
         result.status === 'error'
       );
 
       if (hasErrors) {
-        console.error('Erreurs lors de l\'envoi des notifications:', response.data);
-        return { success: false, errors: response.data };
+        const errors = results.filter(r => r.status === 'error');
+        console.error('❌ [Push Service] Erreurs lors de l\'envoi des notifications:', JSON.stringify(errors, null, 2));
+        
+        // Extraire les messages d'erreur pour les logs
+        errors.forEach(err => {
+          console.error('❌ [Push Service] Erreur:', err.message || err.error);
+          if (err.details) {
+            console.error('❌ [Push Service] Détails:', err.details);
+          }
+        });
+        
+        return { success: false, errors: results };
       }
 
-      return { success: true, data: response.data };
+      console.log('✅ [Push Service] Notifications envoyées avec succès');
+      return { success: true, data: results };
     } catch (error) {
-      console.error('Erreur lors de l\'envoi de la notification push:', error);
+      console.error('❌ [Push Service] Erreur lors de l\'envoi de la notification push:', error);
+      console.error('❌ [Push Service] Message:', error.message);
+      console.error('❌ [Push Service] Response:', error.response?.data);
+      console.error('❌ [Push Service] Status:', error.response?.status);
       return { 
         success: false, 
         error: error.message || 'Erreur lors de l\'envoi de la notification' 
@@ -79,20 +109,13 @@ class PushNotificationService {
    * @param {object} requesterInfo - Informations de l'utilisateur qui envoie la demande
    */
   async sendFriendRequestNotification(recipientPushToken, requesterInfo) {
-    console.log('📱 [PushNotification] sendFriendRequestNotification appelé');
-    console.log('📱 [PushNotification] Token:', recipientPushToken ? `${recipientPushToken.substring(0, 30)}...` : 'null');
-    console.log('📱 [PushNotification] Requester info:', requesterInfo);
-    
     if (!recipientPushToken) {
-      console.warn('⚠️ [PushNotification] Aucun token de notification pour le destinataire');
+      console.warn('Aucun token de notification pour le destinataire');
       return { success: false, error: 'Aucun token de notification' };
     }
 
     const title = 'Nouvelle demande d\'amitié';
     const body = `${requesterInfo.firstName} ${requesterInfo.lastName} vous a envoyé une demande d'amitié`;
-    
-    console.log('📱 [PushNotification] Titre:', title);
-    console.log('📱 [PushNotification] Corps:', body);
     
     const data = {
       type: 'friend_request',
@@ -102,12 +125,7 @@ class PushNotificationService {
       requesterLastName: requesterInfo.lastName,
     };
 
-    console.log('📱 [PushNotification] Données:', data);
-    
-    const result = await this.sendPushNotification(recipientPushToken, title, body, data);
-    console.log('📱 [PushNotification] Résultat final:', result);
-    
-    return result;
+    return await this.sendPushNotification(recipientPushToken, title, body, data);
   }
 
   /**
