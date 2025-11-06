@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import {
   TextInput,
@@ -15,6 +18,7 @@ import {
   List,
   Divider,
   Searchbar,
+  IconButton,
 } from 'react-native-paper';
 import { sessionService, exerciseService } from '../../services/api';
 import { colors, spacing, typography } from '../../styles/theme';
@@ -35,6 +39,17 @@ const CreateSessionScreen = ({ navigation }) => {
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingExercises, setIsLoadingExercises] = useState(false);
+  const [showCreateExerciseModal, setShowCreateExerciseModal] = useState(false);
+  const [isCreatingExercise, setIsCreatingExercise] = useState(false);
+  const [muscleGroups, setMuscleGroups] = useState([]);
+  
+  // Formulaire de création d'exercice
+  const [exerciseFormData, setExerciseFormData] = useState({
+    name: '',
+    description: '',
+    category: '',
+    muscleGroups: [],
+  });
 
   const difficulties = [
     { key: 'easy', label: 'Facile' },
@@ -53,7 +68,15 @@ const CreateSessionScreen = ({ navigation }) => {
   React.useEffect(() => {
     loadExercises();
     loadCategories();
+    loadMuscleGroups();
   }, []);
+
+  // Recharger les exercices quand le modal se ferme (en cas de création)
+  React.useEffect(() => {
+    if (!showCreateExerciseModal) {
+      loadExercises();
+    }
+  }, [showCreateExerciseModal]);
 
   React.useEffect(() => {
     filterExercises();
@@ -128,8 +151,110 @@ const CreateSessionScreen = ({ navigation }) => {
     }
   };
 
+  const loadMuscleGroups = async () => {
+    try {
+      const response = await exerciseService.getMuscleGroups();
+      setMuscleGroups(response.muscleGroups || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des groupes musculaires:', error);
+    }
+  };
+
   const capitalizeFirstLetter = (string) => {
+    if (!string || typeof string !== 'string') return '';
     return string.charAt(0).toUpperCase() + string.slice(1);
+  };
+
+  // Gestion du formulaire de création d'exercice
+  const handleExerciseInputChange = (field, value) => {
+    setExerciseFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleExerciseCategorySelect = (category) => {
+    setExerciseFormData(prev => ({
+      ...prev,
+      category: category
+    }));
+  };
+
+  const handleExerciseMuscleGroupToggle = (muscleGroup) => {
+    setExerciseFormData(prev => ({
+      ...prev,
+      muscleGroups: prev.muscleGroups.includes(muscleGroup)
+        ? prev.muscleGroups.filter(group => group !== muscleGroup)
+        : [...prev.muscleGroups, muscleGroup]
+    }));
+  };
+
+  const validateExerciseForm = () => {
+    if (!exerciseFormData.name.trim()) {
+      Alert.alert('Erreur', 'Le nom de l\'exercice est requis');
+      return false;
+    }
+
+    if (exerciseFormData.name.trim().length < 2) {
+      Alert.alert('Erreur', 'Le nom de l\'exercice doit contenir au moins 2 caractères');
+      return false;
+    }
+
+    if (!exerciseFormData.category) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une catégorie');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleCreateExercise = async () => {
+    if (!validateExerciseForm()) return;
+
+    try {
+      setIsCreatingExercise(true);
+      
+      const exerciseData = {
+        name: exerciseFormData.name.trim(),
+        description: exerciseFormData.description.trim() || undefined,
+        category: exerciseFormData.category,
+        muscleGroups: exerciseFormData.muscleGroups,
+      };
+
+      await exerciseService.createExercise(exerciseData);
+      
+      // Réinitialiser le formulaire
+      setExerciseFormData({
+        name: '',
+        description: '',
+        category: '',
+        muscleGroups: [],
+      });
+      
+      // Fermer le modal
+      setShowCreateExerciseModal(false);
+      
+      // Recharger les exercices
+      await loadExercises();
+      
+      Alert.alert('Succès', 'Exercice créé avec succès ! Il est maintenant disponible dans la liste.');
+    } catch (error) {
+      console.error('Erreur lors de la création:', error);
+      Alert.alert('Erreur', 'Impossible de créer l\'exercice');
+    } finally {
+      setIsCreatingExercise(false);
+    }
+  };
+
+  const handleCloseCreateExerciseModal = () => {
+    setShowCreateExerciseModal(false);
+    // Réinitialiser le formulaire
+    setExerciseFormData({
+      name: '',
+      description: '',
+      category: '',
+      muscleGroups: [],
+    });
   };
 
   const handleInputChange = (field, value) => {
@@ -432,7 +557,18 @@ const CreateSessionScreen = ({ navigation }) => {
 
         {/* Exercices disponibles */}
         <View style={styles.exercisesSection}>
-          <Text style={styles.sectionTitle}>Exercices disponibles</Text>
+          <View style={styles.exercisesSectionHeader}>
+            <Text style={styles.sectionTitle}>Exercices disponibles</Text>
+            <Button
+              mode="contained"
+              onPress={() => setShowCreateExerciseModal(true)}
+              icon="plus"
+              compact
+              style={styles.createExerciseButton}
+            >
+              Créer un exercice
+            </Button>
+          </View>
           
           {/* Filtres par catégorie */}
           <View style={styles.filtersContainer}>
@@ -546,6 +682,124 @@ const CreateSessionScreen = ({ navigation }) => {
           </Button>
         </View>
       </ScrollView>
+
+      {/* Modal de création d'exercice */}
+      <Modal
+        visible={showCreateExerciseModal}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={handleCloseCreateExerciseModal}
+      >
+        <KeyboardAvoidingView 
+          style={styles.modalContainer} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Créer un exercice</Text>
+            <IconButton
+              icon="close"
+              size={24}
+              onPress={handleCloseCreateExerciseModal}
+            />
+          </View>
+
+          <ScrollView style={styles.modalScrollView}>
+            {/* Informations de base */}
+            <Card style={styles.modalCard}>
+              <Card.Content>
+                <Text style={styles.sectionTitle}>Informations de base</Text>
+                
+                <TextInput
+                  label="Nom de l'exercice *"
+                  value={exerciseFormData.name}
+                  onChangeText={(value) => handleExerciseInputChange('name', value)}
+                  mode="outlined"
+                  style={styles.input}
+                  theme={{ colors: { primary: colors.primary } }}
+                  disabled={isCreatingExercise}
+                />
+                
+                <TextInput
+                  label="Description (optionnel)"
+                  value={exerciseFormData.description}
+                  onChangeText={(value) => handleExerciseInputChange('description', value)}
+                  mode="outlined"
+                  multiline
+                  numberOfLines={3}
+                  style={styles.input}
+                  theme={{ colors: { primary: colors.primary } }}
+                  disabled={isCreatingExercise}
+                />
+              </Card.Content>
+            </Card>
+
+            {/* Catégorie */}
+            <Card style={styles.modalCard}>
+              <Card.Content>
+                <Text style={styles.sectionTitle}>Catégorie *</Text>
+                <View style={styles.categoriesContainer}>
+                  {categories.map((category, index) => (
+                    <Chip
+                      key={index}
+                      mode={exerciseFormData.category === category ? 'flat' : 'outlined'}
+                      selected={exerciseFormData.category === category}
+                      onPress={() => handleExerciseCategorySelect(category)}
+                      style={styles.categoryChip}
+                      disabled={isCreatingExercise}
+                    >
+                      {capitalizeFirstLetter(category)}
+                    </Chip>
+                  ))}
+                </View>
+              </Card.Content>
+            </Card>
+
+            {/* Groupes musculaires */}
+            <Card style={styles.modalCard}>
+              <Card.Content>
+                <Text style={styles.sectionTitle}>Groupes musculaires (optionnel)</Text>
+                <View style={styles.muscleGroupsContainer}>
+                  {muscleGroups.map((muscleGroup, index) => (
+                    <Chip
+                      key={index}
+                      mode={exerciseFormData.muscleGroups.includes(muscleGroup) ? 'flat' : 'outlined'}
+                      selected={exerciseFormData.muscleGroups.includes(muscleGroup)}
+                      onPress={() => handleExerciseMuscleGroupToggle(muscleGroup)}
+                      style={styles.muscleGroupChip}
+                      disabled={isCreatingExercise}
+                    >
+                      {capitalizeFirstLetter(muscleGroup)}
+                    </Chip>
+                  ))}
+                </View>
+              </Card.Content>
+            </Card>
+
+            <View style={styles.bottomSpacing} />
+          </ScrollView>
+
+          {/* Boutons d'action du modal */}
+          <View style={styles.modalActionButtons}>
+            <Button
+              mode="outlined"
+              onPress={handleCloseCreateExerciseModal}
+              style={styles.modalCancelButton}
+              disabled={isCreatingExercise}
+            >
+              Annuler
+            </Button>
+            <Button
+              mode="contained"
+              onPress={handleCreateExercise}
+              style={styles.modalCreateButton}
+              loading={isCreatingExercise}
+              disabled={isCreatingExercise}
+            >
+              Créer l'exercice
+            </Button>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 };
@@ -593,6 +847,15 @@ const styles = StyleSheet.create({
   },
   exercisesSection: {
     marginBottom: spacing.md,
+  },
+  exercisesSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  createExerciseButton: {
+    marginLeft: spacing.md,
   },
   filtersContainer: {
     flexDirection: 'row',
@@ -701,6 +964,67 @@ const styles = StyleSheet.create({
   createButton: {
     flex: 1,
     marginLeft: spacing.sm,
+  },
+  // Styles pour le modal de création d'exercice
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingTop: Platform.OS === 'ios' ? spacing.xl : spacing.md,
+  },
+  modalTitle: {
+    ...typography.h4,
+    color: colors.text,
+    fontWeight: '600',
+    flex: 1,
+  },
+  modalScrollView: {
+    flex: 1,
+  },
+  modalCard: {
+    margin: spacing.md,
+    elevation: 4,
+  },
+  categoriesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  categoryChip: {
+    marginBottom: spacing.sm,
+  },
+  muscleGroupsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  muscleGroupChip: {
+    marginBottom: spacing.sm,
+  },
+  bottomSpacing: {
+    height: spacing.xl,
+  },
+  modalActionButtons: {
+    flexDirection: 'row',
+    padding: spacing.md,
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  modalCancelButton: {
+    flex: 1,
+  },
+  modalCreateButton: {
+    flex: 1,
   },
 });
 

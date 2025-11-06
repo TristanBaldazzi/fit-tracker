@@ -154,6 +154,29 @@ const SessionInProgressScreen = ({ route, navigation }) => {
     setSessionData(updatedSessionData);
   };
 
+  const handleAddSet = () => {
+    if (!sessionData) return;
+    
+    const updatedSessionData = { ...sessionData };
+    const exercise = updatedSessionData.exercises[currentExerciseIndex];
+    
+    // Utiliser les valeurs de la dernière série comme référence, ou des valeurs par défaut
+    const lastSet = exercise.sets[exercise.sets.length - 1];
+    const newSet = {
+      reps: lastSet?.reps || 10,
+      weight: lastSet?.weight || 0,
+      duration: lastSet?.duration || 0,
+      distance: lastSet?.distance || 0,
+      restTime: lastSet?.restTime || 60,
+      notes: lastSet?.notes || '',
+      completed: false,
+      _id: `temp_${Date.now()}` // ID temporaire pour les nouvelles séries
+    };
+    
+    exercise.sets = [...exercise.sets, newSet];
+    setSessionData(updatedSessionData);
+  };
+
   const handleNextExercise = () => {
     if (currentExerciseIndex < sessionData.exercises.length - 1) {
       setCurrentExerciseIndex(currentExerciseIndex + 1);
@@ -338,7 +361,18 @@ const SessionInProgressScreen = ({ route, navigation }) => {
 
             {/* Séries de l'exercice */}
             <View style={styles.setsContainer}>
-              <Text style={styles.setsTitle}>Séries</Text>
+              <View style={styles.setsHeader}>
+                <Text style={styles.setsTitle}>Séries</Text>
+                <Button
+                  mode="outlined"
+                  onPress={handleAddSet}
+                  icon="plus"
+                  compact
+                  style={styles.addSetButton}
+                >
+                  Ajouter une série
+                </Button>
+              </View>
               {currentExercise.sets.map((set, setIndex) => (
                 <Card 
                   key={setIndex} 
@@ -547,11 +581,20 @@ const styles = StyleSheet.create({
   setsContainer: {
     marginTop: spacing.md,
   },
+  setsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
   setsTitle: {
     ...typography.h5,
     color: colors.text,
     fontWeight: '600',
-    marginBottom: spacing.md,
+    flex: 1,
+  },
+  addSetButton: {
+    marginLeft: spacing.md,
   },
   setCard: {
     marginBottom: spacing.sm,
