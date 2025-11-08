@@ -148,6 +148,7 @@ router.get('/completed', authenticateToken, async (req, res) => {
           completedAt: completion.completedAt,
           actualDuration: completion.actualDuration,
           notes: completion.notes,
+          images: completion.images || [],
           completedExercises: completion.exercises,
           xpGained: completion.exercises ? 
             completion.exercises.reduce((total, exercise) => 
@@ -709,7 +710,7 @@ router.post('/:id/complete', authenticateToken, async (req, res) => {
     console.log('🚀 === DÉBUT TERMINAISON SÉANCE ===');
     const { id } = req.params;
     const userId = req.user._id;
-    const { actualDuration, xpGained } = req.body;
+    const { actualDuration, xpGained, images } = req.body;
     let { exercises } = req.body;
 
     console.log('📥 Données reçues:', {
@@ -831,7 +832,8 @@ router.post('/:id/complete', authenticateToken, async (req, res) => {
       user: userId,
       completedAt: new Date(),
       actualDuration: actualDuration || session.estimatedDuration,
-      notes: '',
+      notes: req.body.notes || '',
+      images: images || [],
       exercises: exercises.map(exercise => ({
         name: exercise.name,
         category: exercise.category || 'Mixte', // Inclure la catégorie
@@ -1112,7 +1114,7 @@ router.put('/:sessionId/completions/:completionId', authenticateToken, [
 
     const { sessionId, completionId } = req.params;
     const userId = req.user._id;
-    const { actualDuration, notes, exercises } = req.body;
+    const { actualDuration, notes, exercises, images } = req.body;
 
     console.log('✏️ [Update Completion] Modification completion:', { sessionId, completionId, userId });
 
@@ -1167,6 +1169,9 @@ router.put('/:sessionId/completions/:completionId', authenticateToken, [
     }
     if (notes !== undefined) {
       session.completions[completionIndex].notes = notes;
+    }
+    if (images !== undefined) {
+      session.completions[completionIndex].images = images;
     }
     if (exercises !== undefined) {
       session.completions[completionIndex].exercises = exercises.map(exercise => ({

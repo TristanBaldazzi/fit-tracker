@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import {
   Card,
@@ -241,6 +242,27 @@ const CalendarScreen = ({ navigation }) => {
                 💬 {session.notes}
               </Text>
             </Surface>
+          )}
+
+          {session.images && session.images.length > 0 && (
+            <View style={styles.sessionImagesContainer}>
+              <Text style={styles.imagesLabel}>📸 {session.images.length} photo{session.images.length > 1 ? 's' : ''}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagesScrollView}>
+                {session.images.slice(0, 3).map((imageUri, index) => (
+                  <Image
+                    key={index}
+                    source={{ uri: imageUri }}
+                    style={styles.sessionThumbnail}
+                    resizeMode="cover"
+                  />
+                ))}
+                {session.images.length > 3 && (
+                  <View style={styles.moreImagesOverlay}>
+                    <Text style={styles.moreImagesText}>+{session.images.length - 3}</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
           )}
         </TouchableOpacity>
         
@@ -600,6 +622,39 @@ const styles = StyleSheet.create({
   },
   emptyButton: {
     marginTop: spacing.sm,
+  },
+  sessionImagesContainer: {
+    marginTop: spacing.md,
+  },
+  imagesLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+    fontWeight: '600',
+  },
+  imagesScrollView: {
+    marginTop: spacing.xs,
+  },
+  sessionThumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: spacing.xs,
+    backgroundColor: colors.lightGray,
+  },
+  moreImagesOverlay: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: colors.primary + '80',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.xs,
+  },
+  moreImagesText: {
+    ...typography.h6,
+    color: colors.surface,
+    fontWeight: 'bold',
   },
   bottomSpacing: {
     height: spacing.xl,

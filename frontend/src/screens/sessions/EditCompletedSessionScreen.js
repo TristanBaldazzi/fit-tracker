@@ -6,6 +6,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  TouchableOpacity,
 } from 'react-native';
 import {
   Card,
@@ -17,6 +19,8 @@ import {
   IconButton,
   Divider,
 } from 'react-native-paper';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { sessionService } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, typography } from '../../styles/theme';
@@ -31,11 +35,13 @@ const EditCompletedSessionScreen = ({ route, navigation }) => {
   const [actualDuration, setActualDuration] = useState('');
   const [notes, setNotes] = useState('');
   const [exercises, setExercises] = useState([]);
+  const [sessionImages, setSessionImages] = useState([]);
 
   useEffect(() => {
     if (completedSession) {
       setActualDuration(completedSession.actualDuration?.toString() || '');
       setNotes(completedSession.notes || '');
+      setSessionImages(completedSession.images || []);
       
       // Utiliser completedExercises s'il existe, sinon exercises
       const exercisesData = completedSession.completedExercises || completedSession.exercises || [];
@@ -52,6 +58,20 @@ const EditCompletedSessionScreen = ({ route, navigation }) => {
       })));
     }
   }, [completedSession]);
+
+  useEffect(() => {
+    requestImagePermissions();
+  }, []);
+
+  const requestImagePermissions = async () => {
+    if (Platform.OS !== 'web') {
+      const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (cameraStatus !== 'granted' || libraryStatus !== 'granted') {
+        // Ne pas afficher d'alerte ici, juste demander les permissions
+      }
+    }
+  };
 
   const handleUpdateSet = (exerciseIndex, setIndex, field, value) => {
     const updatedExercises = [...exercises];
@@ -87,6 +107,79 @@ const EditCompletedSessionScreen = ({ route, navigation }) => {
     setExercises(updatedExercises);
   };
 
+  const pickImage = async (source) => {
+    try {
+      let result;
+      
+      if (source === 'camera') {
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+          allowsMultipleSelection: true,
+        });
+      }
+
+      if (!result.canceled && result.assets) {
+        const newImages = result.assets.map(asset => asset.uri);
+        setSessionImages(prev => [...prev, ...newImages]);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sélection d\'image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+    }
+  };
+
+  const removeImage = (index) => {
+    setSessionImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const showImagePickerOptions = () => {
+    Alert.alert(
+      'Ajouter une photo',
+      'Choisissez une option',
+      [
+        {
+          text: 'Prendre une photo',
+          onPress: () => pickImage('camera'),
+        },
+        {
+          text: 'Choisir depuis la galerie',
+          onPress: () => pickImage('library'),
+        },
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const convertImageToBase64 = async (uri) => {
+    try {
+      // Si c'est déjà en base64, retourner tel quel
+      if (uri.startsWith('data:image')) {
+        return uri;
+      }
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return `data:image/jpeg;base64,${base64}`;
+    } catch (error) {
+      console.error('Erreur lors de la conversion en base64:', error);
+      return null;
+    }
+  };
+
   const handleSave = async () => {
     try {
       setIsSaving(true);
@@ -107,10 +200,21 @@ const EditCompletedSessionScreen = ({ route, navigation }) => {
         updateData.notes = notes;
       }
 
+      // Convertir les images en base64
+      const imagesBase64 = [];
+      for (const imageUri of sessionImages) {
+        const base64 = await convertImageToBase64(imageUri);
+        if (base64) {
+          imagesBase64.push(base64);
+        }
+      }
+      updateData.images = imagesBase64;
+
       // Inclure les exercices modifiés
       if (exercises.length > 0) {
         updateData.exercises = exercises.map(exercise => ({
           name: exercise.name,
+          category: exercise.category || 'Mixte',
           sets: exercise.sets.map(set => ({
             reps: set.reps || 0,
             weight: set.weight || 0,
@@ -236,6 +340,46 @@ const EditCompletedSessionScreen = ({ route, navigation }) => {
               style={styles.input}
               disabled={isSaving}
             />
+          </Card.Content>
+        </Card>
+
+        {/* Section Images */}
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.imagesHeader}>
+              <Text style={styles.sectionTitle}>📸 Photos de la séance</Text>
+              <Button
+                mode="outlined"
+                onPress={showImagePickerOptions}
+                icon="camera"
+                compact
+                disabled={isSaving}
+              >
+                Ajouter
+              </Button>
+            </View>
+            
+            {sessionImages.length > 0 ? (
+              <View style={styles.imagesContainer}>
+                {sessionImages.map((imageUri, index) => (
+                  <View key={index} style={styles.imageWrapper}>
+                    <Image source={{ uri: imageUri }} style={styles.sessionImage} />
+                    <IconButton
+                      icon="close-circle"
+                      size={24}
+                      iconColor={colors.error}
+                      style={styles.removeImageButton}
+                      onPress={() => removeImage(index)}
+                      disabled={isSaving}
+                    />
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.noImagesText}>
+                Aucune photo ajoutée. Cliquez sur "Ajouter" pour prendre ou choisir une photo.
+              </Text>
+            )}
           </Card.Content>
         </Card>
 
@@ -404,6 +548,43 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.warning,
     marginTop: spacing.xs,
+    fontStyle: 'italic',
+  },
+  imagesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  imagesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  imageWrapper: {
+    position: 'relative',
+    width: '48%',
+    aspectRatio: 1,
+    marginBottom: spacing.sm,
+  },
+  sessionImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+    backgroundColor: colors.lightGray,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: colors.surface,
+    margin: 0,
+  },
+  noImagesText: {
+    ...typography.body2,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    paddingVertical: spacing.md,
     fontStyle: 'italic',
   },
 });

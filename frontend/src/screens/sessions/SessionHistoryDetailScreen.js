@@ -4,6 +4,8 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  Image,
+  TouchableOpacity,
 } from 'react-native';
 import {
   Card,
@@ -195,6 +197,32 @@ const SessionHistoryDetailScreen = ({ route, navigation }) => {
           </View>
         </Card.Content>
       </Card>
+
+      {/* Images de la séance */}
+      {session.images && session.images.length > 0 && (
+        <Card style={styles.imagesCard}>
+          <Card.Content>
+            <Text style={styles.sectionTitle}>📸 Photos de la séance</Text>
+            <View style={styles.imagesContainer}>
+              {session.images.map((imageUri, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.imageWrapper}
+                  onPress={() => {
+                    // TODO: Ouvrir l'image en plein écran
+                  }}
+                >
+                  <Image 
+                    source={{ uri: imageUri }} 
+                    style={styles.sessionImage}
+                    resizeMode="cover"
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Card.Content>
+        </Card>
+      )}
 
       {/* Exercices de la séance */}
       <Card style={styles.exercisesCard}>
@@ -428,6 +456,27 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: spacing.xl,
+  },
+  imagesCard: {
+    margin: spacing.md,
+    marginTop: 0,
+    elevation: 4,
+  },
+  imagesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  imageWrapper: {
+    width: '48%',
+    aspectRatio: 1,
+    marginBottom: spacing.sm,
+  },
+  sessionImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+    backgroundColor: colors.lightGray,
   },
 });
 

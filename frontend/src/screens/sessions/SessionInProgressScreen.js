@@ -5,6 +5,9 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
+  Image,
+  Platform,
+  Modal,
 } from 'react-native';
 import {
   Card,
@@ -16,6 +19,8 @@ import {
   Chip,
   IconButton,
 } from 'react-native-paper';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { sessionService } from '../../services/api';
 import { colors, spacing, typography } from '../../styles/theme';
 import TimerModal from '../../components/TimerModal';
@@ -30,10 +35,26 @@ const SessionInProgressScreen = ({ route, navigation }) => {
   const [sessionData, setSessionData] = useState(null);
   const [timerModalVisible, setTimerModalVisible] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState(null);
+  const [sessionImages, setSessionImages] = useState([]);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
 
   useEffect(() => {
     loadSession();
+    requestImagePermissions();
   }, [sessionId]);
+
+  const requestImagePermissions = async () => {
+    if (Platform.OS !== 'web') {
+      const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (cameraStatus !== 'granted' || libraryStatus !== 'granted') {
+        Alert.alert(
+          'Permissions requises',
+          'Les permissions de caméra et de bibliothèque photo sont nécessaires pour ajouter des images à vos séances.'
+        );
+      }
+    }
+  };
 
   // Sauvegarde automatique quand sessionData change
   useEffect(() => {
@@ -67,6 +88,8 @@ const SessionInProgressScreen = ({ route, navigation }) => {
         setSessionData(savedProgress.sessionData);
         setCurrentExerciseIndex(savedProgress.currentExerciseIndex);
         setSession(savedProgress.sessionData);
+        // Ne pas charger les images depuis le stockage local - elles seront ajoutées à la fin
+        setSessionImages([]);
         console.log('🔄 Séance reprise depuis le stockage local');
       } else {
         // Charger une nouvelle séance
@@ -112,6 +135,7 @@ const SessionInProgressScreen = ({ route, navigation }) => {
       const progressData = {
         currentExerciseIndex,
         sessionData,
+        // Ne pas sauvegarder les images dans le stockage local - elles seront ajoutées à la fin
         timestamp: new Date().toISOString(),
       };
       
@@ -121,6 +145,63 @@ const SessionInProgressScreen = ({ route, navigation }) => {
     } catch (error) {
       console.error('Erreur lors de la sauvegarde locale:', error);
     }
+  };
+
+  const pickImage = async (source) => {
+    try {
+      let result;
+      
+      if (source === 'camera') {
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+          allowsMultipleSelection: true,
+        });
+      }
+
+      if (!result.canceled && result.assets) {
+        const newImages = result.assets.map(asset => asset.uri);
+        setSessionImages(prev => [...prev, ...newImages]);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sélection d\'image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+    }
+  };
+
+  const removeImage = (index) => {
+    setSessionImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const showImagePickerOptions = () => {
+    Alert.alert(
+      'Ajouter une photo',
+      'Choisissez une option',
+      [
+        {
+          text: 'Prendre une photo',
+          onPress: () => pickImage('camera'),
+        },
+        {
+          text: 'Choisir depuis la galerie',
+          onPress: () => pickImage('library'),
+        },
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleUpdateSet = (setIndex, field, value) => {
@@ -189,10 +270,30 @@ const SessionInProgressScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleCompleteSession = async () => {
-    console.log('🔥 FONCTION handleCompleteSession DÉCLENCHÉE !');
+  const convertImageToBase64 = async (uri) => {
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return `data:image/jpeg;base64,${base64}`;
+    } catch (error) {
+      console.error('Erreur lors de la conversion en base64:', error);
+      return null;
+    }
+  };
+
+  const handleCompleteSession = () => {
+    // Ouvrir la modal pour ajouter des photos
+    setShowPhotoModal(true);
+  };
+
+  const handleFinishSession = async () => {
+    console.log('🔥 FONCTION handleFinishSession DÉCLENCHÉE !');
     try {
       setIsSaving(true);
+      
+      // Fermer la modal
+      setShowPhotoModal(false);
       
       // Envoyer les données directement
       const exercisesToSend = sessionData.exercises.map(exercise => ({
@@ -214,11 +315,23 @@ const SessionInProgressScreen = ({ route, navigation }) => {
       
       const xpGained = completedSets * 10; // 10 XP par série complétée
       
+      // Convertir les images en base64 (si des photos ont été ajoutées)
+      const imagesBase64 = [];
+      if (sessionImages.length > 0) {
+        for (const imageUri of sessionImages) {
+          const base64 = await convertImageToBase64(imageUri);
+          if (base64) {
+            imagesBase64.push(base64);
+          }
+        }
+      }
+      
       // Sauvegarder la séance complétée
       await sessionService.completeSession(sessionId, {
         actualDuration: 45, // TODO: Calculer la vraie durée
         exercises: exercisesToSend,
-        xpGained: xpGained
+        xpGained: xpGained,
+        images: imagesBase64
       });
       
       // Nettoyer le stockage local
@@ -474,14 +587,83 @@ const SessionInProgressScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      {/* Modal du chronomètre */}
-      <TimerModal
-        visible={timerModalVisible}
-        onClose={() => setTimerModalVisible(false)}
-      />
-    </View>
-  );
-};
+          {/* Modal du chronomètre */}
+          <TimerModal
+            visible={timerModalVisible}
+            onClose={() => setTimerModalVisible(false)}
+          />
+
+          {/* Modal pour ajouter des photos à la fin de la séance */}
+          <Modal
+            visible={showPhotoModal}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowPhotoModal(false)}
+          >
+            <View style={styles.photoModalOverlay}>
+              <Card style={styles.photoModalCard}>
+                <Card.Content>
+                  <View style={styles.photoModalHeader}>
+                    <Text style={styles.photoModalTitle}>📸 Ajouter des photos</Text>
+                    <IconButton
+                      icon="close"
+                      size={24}
+                      onPress={() => setShowPhotoModal(false)}
+                      disabled={isSaving}
+                    />
+                  </View>
+                  
+                  <Text style={styles.photoModalDescription}>
+                    Souhaitez-vous ajouter des photos à cette séance ?
+                  </Text>
+
+                  {sessionImages.length > 0 && (
+                    <View style={styles.imagesContainer}>
+                      {sessionImages.map((imageUri, index) => (
+                        <View key={index} style={styles.imageWrapper}>
+                          <Image source={{ uri: imageUri }} style={styles.sessionImage} />
+                          <IconButton
+                            icon="close-circle"
+                            size={24}
+                            iconColor={colors.error}
+                            style={styles.removeImageButton}
+                            onPress={() => removeImage(index)}
+                            disabled={isSaving}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  <View style={styles.photoModalButtons}>
+                    <Button
+                      mode="outlined"
+                      onPress={showImagePickerOptions}
+                      icon="camera"
+                      style={styles.photoButton}
+                      disabled={isSaving}
+                    >
+                      {sessionImages.length > 0 ? 'Ajouter une photo' : 'Prendre/Choisir une photo'}
+                    </Button>
+                    
+                    <Button
+                      mode="contained"
+                      onPress={() => handleFinishSession(false)}
+                      style={styles.finishButton}
+                      disabled={isSaving}
+                      loading={isSaving}
+                      icon="check"
+                    >
+                      Terminer la séance
+                    </Button>
+                  </View>
+                </Card.Content>
+              </Card>
+            </View>
+          </Modal>
+        </View>
+      );
+    };
 
 const styles = StyleSheet.create({
   container: {
@@ -656,6 +838,93 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     paddingHorizontal: spacing.lg,
+  },
+  imagesCard: {
+    marginBottom: spacing.md,
+    elevation: 4,
+  },
+  imagesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  imagesTitle: {
+    ...typography.h5,
+    color: colors.text,
+    fontWeight: '600',
+    flex: 1,
+  },
+  imagesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  imageWrapper: {
+    position: 'relative',
+    width: '48%',
+    aspectRatio: 1,
+    marginBottom: spacing.sm,
+  },
+  sessionImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+    backgroundColor: colors.lightGray,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: colors.surface,
+    margin: 0,
+  },
+  noImagesText: {
+    ...typography.body2,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    paddingVertical: spacing.md,
+    fontStyle: 'italic',
+  },
+  // Styles pour la modal de photos
+  photoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  photoModalCard: {
+    width: '100%',
+    maxWidth: 500,
+    elevation: 8,
+  },
+  photoModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  photoModalTitle: {
+    ...typography.h4,
+    color: colors.text,
+    fontWeight: '600',
+    flex: 1,
+  },
+  photoModalDescription: {
+    ...typography.body1,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+    textAlign: 'center',
+  },
+  photoModalButtons: {
+    marginTop: spacing.md,
+  },
+  photoButton: {
+    marginBottom: spacing.md,
+  },
+  finishButton: {
+    marginTop: spacing.sm,
   },
 });
 

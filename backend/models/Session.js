@@ -125,6 +125,10 @@ const sessionSchema = new mongoose.Schema({
       type: String,
       trim: true
     },
+    images: [{
+      type: String, // URL ou base64 de l'image
+      default: []
+    }],
     exercises: [{
       name: String,
       sets: [{
